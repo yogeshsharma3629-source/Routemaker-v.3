@@ -4,22 +4,35 @@
 // =====================================================================
 // SECURE KEY MANAGEMENT (Keeps your key out of GitHub!)
 // =====================================================================
-let GEMINI_API_KEY = localStorage.getItem('GEMINI_API_KEY');
+// =====================================================================
+// SECURE & CRASH-PROOF KEY MANAGEMENT
+// =====================================================================
+let GEMINI_API_KEY = "";
 
-// If no key is saved in this browser yet, prompt the user for it
-if (!GEMINI_API_KEY) {
-    GEMINI_API_KEY = prompt("Please enter your Gemini API Key to enable manifest scanning. (This will be saved safely in your local browser storage and won't be pushed to GitHub):");
-    if (GEMINI_API_KEY) {
-        localStorage.setItem('GEMINI_API_KEY', GEMINI_API_KEY.trim());
+try {
+    GEMINI_API_KEY = localStorage.getItem('GEMINI_API_KEY');
+
+    // Only show prompt if we are not in a restricted in-app browser environment
+    if (!GEMINI_API_KEY && typeof prompt !== 'undefined') {
+        GEMINI_API_KEY = prompt("Please enter your Gemini API Key to enable manifest scanning:");
+        if (GEMINI_API_KEY) {
+            localStorage.setItem('GEMINI_API_KEY', GEMINI_API_KEY.trim());
+        }
     }
+} catch (e) {
+    console.warn("Storage or prompt blocked by browser sandbox:", e);
+    // Fallback: Code keeps running smoothly instead of crashing
 }
 
 // Quick way to clear/reset the key if you ever need to update it
 function resetApiKey() {
-    localStorage.removeItem('GEMINI_API_KEY');
-    alert("API Key cleared. Please refresh the page to enter a new one.");
+    try {
+        localStorage.removeItem('GEMINI_API_KEY');
+        alert("API Key cleared. Please refresh the page.");
+    } catch(e) {
+        alert("Action not supported in this browser.");
+    }
 }
-
 // ... the rest of your map initialization code continues below normally
 
 const map = new maplibregl.Map({
