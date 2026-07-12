@@ -147,7 +147,7 @@ startRouteBtn.addEventListener('click', () => {
         return;
     }
 
-    navigationStarted = !navigationStarted;
+    navigationStartled = !navigationStarted;
 
     if (navigationStarted) {
         startRouteBtn.textContent = 'Stop Navigation';
