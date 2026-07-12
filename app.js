@@ -94,38 +94,8 @@ map.on('movestart', (e) => {
 });
 
 // =====================================================================
-// MOBILE VERTICAL DRAG / GESTURE SLIDER LOGIC
+// MOBILE SLIDER STATE LOGIC (TOUCH SWIPING REMOVED)
 // =====================================================================
-let touchStartY = 0;
-let touchEndY = 0;
-
-// Listen to touch events on the header handle area
-const sidebarHeader = document.querySelector('.sidebar-header');
-
-if (sidebarHeader) {
-    sidebarHeader.addEventListener('touchstart', (e) => {
-        touchStartY = e.touches[0].clientY;
-    }, { passive: true });
-
-    sidebarHeader.addEventListener('touchmove', (e) => {
-        touchEndY = e.touches[0].clientY;
-        const dragDistance = touchStartY - touchEndY; // Positive means pulling up
-
-        if (dragDistance > 30 && !addressSidebar.classList.contains('open')) {
-            toggleSidebar(true);
-        } else if (dragDistance < -30 && addressSidebar.classList.contains('open')) {
-            toggleSidebar(false);
-        }
-    }, { passive: true });
-
-    // Fallback click listener for the top header if someone just taps it
-    sidebarHeader.addEventListener('click', (e) => {
-        if (e.target.id === 'closeSidebarBtn') return;
-        const isOpen = addressSidebar.classList.contains('open');
-        toggleSidebar(!isOpen);
-    });
-}
-
 function toggleSidebar(shouldOpen) {
     if (shouldOpen) {
         addressSidebar.classList.add('open');
@@ -136,6 +106,7 @@ function toggleSidebar(shouldOpen) {
     }
 }
 
+// Expressly toggle ONLY via physical button clicks now
 if (closeSidebarBtn) closeSidebarBtn.addEventListener('click', () => toggleSidebar(false));
 if (openSidebarBtn) openSidebarBtn.addEventListener('click', () => toggleSidebar(true));
 
@@ -146,7 +117,6 @@ startRouteBtn.addEventListener('click', () => {
         return;
     }
 
-    // FIXED: Corrected layout spelling flag assignment here to turn on navigation line successfully
     navigationStarted = !navigationStarted;
 
     if (navigationStarted) {
@@ -410,8 +380,14 @@ function createNumberedPin(number) {
 function setBaseLayer(layer) {
     map.setLayoutProperty('osm-layer', 'visibility', layer === 'street' ? 'visible' : 'none');
     map.setLayoutProperty('satellite-layer', 'visibility', layer === 'satellite' ? 'visible' : 'none');
-    mapViewBtn.classList.toggle('active', layer === 'street');
-    satelliteViewBtn.classList.toggle('active', layer === 'satellite');
+    
+    if (layer === 'street') {
+        mapViewBtn.classList.add('active');
+        satelliteViewBtn.classList.remove('active');
+    } else {
+        satelliteViewBtn.classList.add('active');
+        mapViewBtn.classList.remove('active');
+    }
 }
 
 map.on('load', () => setBaseLayer('street'));
