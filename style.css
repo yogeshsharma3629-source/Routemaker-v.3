@@ -10,6 +10,22 @@ body {
 .sidebar {
     touch-action: none;
 }
+/* Styling tweak for the top search layout upload button pill */
+#scanButton {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a73e8;
+    background-color: #f1f3f4;
+    border-radius: 16px;
+    margin: 4px;
+    padding: 8px 12px;
+    white-space: nowrap;
+    border-left: none; /* Removes old divider border */
+}
+
+#scanButton:hover {
+    background-color: #e8f0fe;
+}
 #map {
     position: absolute;
     inset: 0;
