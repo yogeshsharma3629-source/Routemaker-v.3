@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Map Pro</title>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div id="addressSidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h3>Delivery Stops</h3>
+            <button id="closeSidebarBtn" title="Close Panel">&times;</button>
+        </div>
+        <div id="addressListContainer" class="address-list-content">
+            <p class="empty-state-text">No scanned addresses yet. Click the camera icon above to scan a delivery
+                manifest screen.</p>
+        </div>
+        <div class="sidebar-footer">
+            <button id="startRouteBtn" class="start-btn">Start Route</button>
+            <button id="clearAddressesBtn" class="clear-btn">Clear</button>
+        </div>
+    </div>
+
+    <button id="openSidebarBtn" class="open-sidebar-tab" title="Open Delivery Stops">📋</button>
+
+    <div id="map"></div>
+
+    <div class="gmaps-top-search">
+        <input id="searchInput" type="text" class="gmaps-search-input" placeholder="Search places or addresses">
+        <button id="scanButton" class="search-icon-btn" type="button" title="Scan document">📷</button>
+        <button id="searchButton" class="search-icon-btn" type="button">🔍</button>
+    </div>
+
+    <input id="fileInput" type="file" accept="image/*" capture="environment" hidden>
+
+    <div class="gmaps-view-switcher" role="toolbar" aria-label="Map view controls">
+        <button id="mapViewBtn" class="view-pill active" type="button">Map</button>
+        <button id="satelliteViewBtn" class="view-pill" type="button">Satellite</button>
+    </div>
+
+    <div class="gmaps-floating-actions">
+        <button id="locateButton" class="action-circle-btn" type="button">&#128205</button>
+    </div>
+
+    <div id="statusBar" class="gmaps-status">Finding your location…</div>
+
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

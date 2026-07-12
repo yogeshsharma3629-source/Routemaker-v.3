@@ -1,0 +1,370 @@
+html,
+body {
+    margin: 0;
+    height: 100%;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f2f2f2;
+    overflow: hidden;
+}
+
+#map {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #e6e6e6;
+    z-index: 1;
+}
+
+/* --- TOP SEARCH BAR --- */
+.gmaps-top-search {
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    width: min(90%, 560px);
+    background: white;
+    border-radius: 999px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+    z-index: 5;
+}
+
+.gmaps-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 14px 16px;
+    font-size: 15px;
+}
+
+.search-icon-btn,
+.action-circle-btn {
+    border: none;
+    cursor: pointer;
+    background: white;
+}
+
+.search-icon-btn {
+    padding: 12px 16px;
+    font-size: 18px;
+}
+
+#scanButton {
+    border-left: 1px solid #e0e0e0;
+}
+
+/* --- BOTTOM CONTROLS --- */
+.gmaps-view-switcher {
+    position: absolute;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    padding: 6px;
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 999px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+}
+
+.view-pill {
+    border: none;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #5f6368;
+    background: transparent;
+    cursor: pointer;
+}
+
+.view-pill.active {
+    background: #1a73e8;
+    color: white;
+}
+
+.gmaps-floating-actions {
+    position: absolute;
+    right: 14px;
+    bottom: 92px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 5;
+}
+
+.action-circle-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    font-size: 18px;
+}
+
+/* --- STATUS BAR --- */
+.gmaps-status {
+    position: absolute;
+    bottom: 85px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.maplibregl-ctrl-top-right {
+    top: 82px !important;
+    right: 14px !important;
+}
+
+/* --- LEFT SIDEBAR SLIDER PANEL --- */
+.sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 320px;
+    height: 100%;
+    background: white;
+    box-shadow: 2px 0 15px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+    transform: translateX(-100%);
+}
+
+.sidebar.open {
+    transform: translateX(0);
+}
+
+.sidebar-header {
+    padding: 16px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sidebar-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #202124;
+}
+
+#closeSidebarBtn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #5f6368;
+}
+
+.address-list-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+}
+
+.empty-state-text {
+    color: #70757a;
+    font-size: 14px;
+    text-align: center;
+    padding-top: 40px;
+    line-height: 1.4;
+}
+
+.address-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #f8f9fa;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.address-item:hover {
+    background: #f1f3f4;
+}
+
+.address-item.active-stop {
+    border-color: #1a73e8;
+    background: #e8f0fe;
+}
+
+.stop-number {
+    min-width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ea4335;
+    color: white;
+    font-weight: bold;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.address-text-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.address-street {
+    font-size: 14px;
+    font-weight: 600;
+    color: #202124;
+}
+
+.address-city {
+    font-size: 12px;
+    color: #5f6368;
+}
+
+.sidebar-footer {
+    padding: 12px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    gap: 8px;
+}
+
+.start-btn {
+    flex: 1;
+    padding: 10px;
+    background: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.start-btn.nav-active {
+    background: #34a853;
+}
+
+.clear-btn {
+    padding: 10px 16px;
+    background: #f1f3f4;
+    color: #ea4335;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.open-sidebar-tab {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: white;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* --- FIXED: USER LOCATION BLUE DOT VISUALS --- */
+.user-dot-container {
+    position: relative;
+    width: 24px;
+    height: 24px;
+}
+
+.blue-dot {
+    width: 14px;
+    height: 14px;
+    background: #1a73e8;
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    z-index: 2;
+}
+
+.pulse-ring {
+    border: 3px solid #1a73e8;
+    border-radius: 50%;
+    height: 34px;
+    width: 34px;
+    position: absolute;
+    left: -5px;
+    top: -5px;
+    animation: gpsPulse 2s ease-out infinite;
+    opacity: 0;
+}
+
+@keyframes gpsPulse {
+    0% {
+        transform: scale(0.2);
+        opacity: 0;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
+
+    100% {
+        transform: scale(1.2);
+        opacity: 0;
+    }
+}
+
+.compass-cone {
+    position: absolute;
+    top: -12px;
+    left: 2px;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-bottom: 22px solid rgba(26, 115, 232, 0.4);
+    z-index: 1;
+}
+
+.numbered-pin {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #ea4335;
+    border: 2px solid white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 15px;
+}
+
+@media (max-width: 768px) {
+    .gmaps-top-search {
+        top: 12px;
+        width: calc(100% - 24px);
+    }
+
+    .sidebar {
+        width: 100%;
+    }
+}
