@@ -1,39 +1,14 @@
 // =====================================================================
-// PASTE YOUR GEMINI API KEY INSIDE THE QUOTES BELOW
-// =====================================================================
-// =====================================================================
-// SECURE KEY MANAGEMENT (Keeps your key out of GitHub!)
-// =====================================================================
-// =====================================================================
-// SECURE & CRASH-PROOF KEY MANAGEMENT
+// INLINE SIDEBAR KEY MANAGEMENT
 // =====================================================================
 let GEMINI_API_KEY = "";
 
+// Read key on initialization if it already exists locally
 try {
-    GEMINI_API_KEY = localStorage.getItem('GEMINI_API_KEY');
-
-    // Only show prompt if we are not in a restricted in-app browser environment
-    if (!GEMINI_API_KEY && typeof prompt !== 'undefined') {
-        GEMINI_API_KEY = prompt("Please enter your Gemini API Key to enable manifest scanning:");
-        if (GEMINI_API_KEY) {
-            localStorage.setItem('GEMINI_API_KEY', GEMINI_API_KEY.trim());
-        }
-    }
+    GEMINI_API_KEY = localStorage.getItem('GEMINI_API_KEY') || "";
 } catch (e) {
-    console.warn("Storage or prompt blocked by browser sandbox:", e);
-    // Fallback: Code keeps running smoothly instead of crashing
+    console.warn("Local storage access blocked:", e);
 }
-
-// Quick way to clear/reset the key if you ever need to update it
-function resetApiKey() {
-    try {
-        localStorage.removeItem('GEMINI_API_KEY');
-        alert("API Key cleared. Please refresh the page.");
-    } catch(e) {
-        alert("Action not supported in this browser.");
-    }
-}
-// ... the rest of your map initialization code continues below normally
 
 const map = new maplibregl.Map({
     container: 'map',
@@ -63,7 +38,7 @@ let activeMapMarkers = [];
 // App State Toggles
 let isUserInteracting = false;
 let followUserMode = true;
-let navigationStarted = false; // NEW: Tracks if routing is started
+let navigationStarted = false; 
 
 // DOM Elements
 const statusBar = document.getElementById('statusBar');
@@ -80,7 +55,36 @@ const addressListContainer = document.getElementById('addressListContainer');
 const closeSidebarBtn = document.getElementById('closeSidebarBtn');
 const openSidebarBtn = document.getElementById('openSidebarBtn');
 const clearAddressesBtn = document.getElementById('clearAddressesBtn');
-const startRouteBtn = document.getElementById('startRouteBtn'); // NEW
+const startRouteBtn = document.getElementById('startRouteBtn'); 
+
+// NEW DOM Elements for Inline Key Config
+const apiKeyInput = document.getElementById('apiKeyInput');
+const saveKeyBtn = document.getElementById('saveKeyBtn');
+
+// Pre-populate input box if key is already stored
+if (GEMINI_API_KEY && apiKeyInput) {
+    apiKeyInput.value = GEMINI_API_KEY;
+}
+
+// Save Key Action Button Listener
+if (saveKeyBtn && apiKeyInput) {
+    saveKeyBtn.addEventListener('click', () => {
+        const freshKey = apiKeyInput.value.trim();
+        if (freshKey) {
+            GEMINI_API_KEY = freshKey;
+            try {
+                localStorage.setItem('GEMINI_API_KEY', freshKey);
+                statusBar.textContent = "API Key saved locally!";
+            } catch(e) {
+                statusBar.textContent = "Saved to session (Storage blocked).";
+            }
+        } else {
+            GEMINI_API_KEY = "";
+            try { localStorage.removeItem('GEMINI_API_KEY'); } catch(e) {}
+            statusBar.textContent = "API Key removed.";
+        }
+    });
+}
 
 map.on('movestart', (e) => {
     if (e.originalEvent) {
@@ -88,66 +92,61 @@ map.on('movestart', (e) => {
         followUserMode = false;
     }
 });
+
 // =====================================================================
-// MOBILE SWIPE / SLIDER GESTURE LOGIC
+// MOBILE VERTICAL DRAG / GESTURE SLIDER LOGIC
 // =====================================================================
-let touchStartX = 0;
-let touchEndX = 0;
+let touchStartY = 0;
+let touchEndY = 0;
 
-// Track where the thumb first touches the screen
-addressSidebar.addEventListener('touchstart', (e) => {
-    touchStartX = e.changedTouches[0].screenX;
-}, { passive: true });
+// Listen to touch events on the header handle area
+const sidebarHeader = document.querySelector('.sidebar-header');
 
-// Track where the thumb lifts off the screen
-addressSidebar.addEventListener('touchend', (e) => {
-    touchEndX = e.changedTouches[0].screenX;
-    handleSwipeGesture();
-}, { passive: true });
+if (sidebarHeader) {
+    sidebarHeader.addEventListener('touchstart', (e) => {
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
 
-// Also allow swiping open from the left edge tab button area
-openSidebarBtn.addEventListener('touchstart', (e) => {
-    touchStartX = e.changedTouches[0].screenX;
-}, { passive: true });
+    sidebarHeader.addEventListener('touchmove', (e) => {
+        touchEndY = e.touches[0].clientY;
+        const dragDistance = touchStartY - touchEndY; // Positive means pulling up
 
-openSidebarBtn.addEventListener('touchend', (e) => {
-    touchEndX = e.changedTouches[0].screenX;
-    handleSwipeGesture();
-}, { passive: true });
+        if (dragDistance > 30 && !addressSidebar.classList.contains('open')) {
+            toggleSidebar(true);
+        } else if (dragDistance < -30 && addressSidebar.classList.contains('open')) {
+            toggleSidebar(false);
+        }
+    }, { passive: true });
 
-function handleSwipeGesture() {
-    const swipeDistance = touchEndX - touchStartX;
-    
-    // Swipe Left (Min 50px) -> Close the panel
-    if (swipeDistance < -50 && addressSidebar.classList.contains('open')) {
-        toggleSidebar(false);
-    }
-    
-    // Swipe Right (Min 50px) -> Open the panel
-    if (swipeDistance > 50 && !addressSidebar.classList.contains('open')) {
-        toggleSidebar(true);
-    }
+    // Fallback click listener for the top header if someone just taps it
+    sidebarHeader.addEventListener('click', (e) => {
+        if (e.target.id === 'closeSidebarBtn') return;
+        const isOpen = addressSidebar.classList.contains('open');
+        toggleSidebar(!isOpen);
+    });
 }
+
 function toggleSidebar(shouldOpen) {
     if (shouldOpen) {
         addressSidebar.classList.add('open');
-        openSidebarBtn.style.display = 'none';
+        if (openSidebarBtn) openSidebarBtn.style.display = 'none';
     } else {
         addressSidebar.classList.remove('open');
-        openSidebarBtn.style.display = 'flex';
+        if (openSidebarBtn) openSidebarBtn.style.display = 'flex';
     }
 }
-closeSidebarBtn.addEventListener('click', () => toggleSidebar(false));
-openSidebarBtn.addEventListener('click', () => toggleSidebar(true));
 
-// NEW: Start/Stop Route Navigation Event Handler
+if (closeSidebarBtn) closeSidebarBtn.addEventListener('click', () => toggleSidebar(false));
+if (openSidebarBtn) openSidebarBtn.addEventListener('click', () => toggleSidebar(true));
+
+// Start/Stop Route Navigation Event Handler
 startRouteBtn.addEventListener('click', () => {
     if (routeStops.length === 0) {
         statusBar.textContent = 'Please scan or search addresses first.';
         return;
     }
 
-    navigationStartled = !navigationStarted;
+    navigationStarted = !navigationStarted;
 
     if (navigationStarted) {
         startRouteBtn.textContent = 'Stop Navigation';
@@ -159,7 +158,6 @@ startRouteBtn.addEventListener('click', () => {
     } else {
         startRouteBtn.textContent = 'Start Route';
         startRouteBtn.classList.remove('nav-active');
-        // Clear route layout geometry line immediately
         if (map.getSource('route')) {
             map.getSource('route').setData({ type: 'FeatureCollection', features: [] });
         }
@@ -177,6 +175,12 @@ async function convertFileToBase64(file) {
 }
 
 async function scanImageWithGemini(file) {
+    if (!GEMINI_API_KEY) {
+        statusBar.textContent = 'Error: Please set your Gemini API key inside the slider first.';
+        toggleSidebar(true);
+        return;
+    }
+
     statusBar.textContent = 'Uploading to Gemini AI...';
     try {
         const base64Data = await convertFileToBase64(file);
@@ -222,13 +226,9 @@ async function processExtractedStops(stops) {
     for (let i = 0; i < stops.length; i++) {
         const stop = stops[i];
 
-        // NEW: Clean the city name by removing hyphens and sub-districts (e.g., "Leonding-Bergham" becomes "Leonding")
         const cleanCity = stop.city.split('-')[0].trim();
-
-        // Clean the postal code if it contains an "A-" prefix
         const cleanPostalCode = stop.postal_code.replace('A-', '').trim();
 
-        // Build the optimized search string for Nominatim
         const searchString = `${stop.street}, ${cleanPostalCode} ${cleanCity}`;
         const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(searchString)}&countrycodes=at`;
 
@@ -239,7 +239,7 @@ async function processExtractedStops(stops) {
                 routeStops.push({
                     id: i,
                     street: stop.street,
-                    city: `${stop.postal_code} ${stop.city}`, // Keeps original display text for your sidebar list
+                    city: `${stop.postal_code} ${stop.city}`,
                     lng: parseFloat(data[0].lon),
                     lat: parseFloat(data[0].lat)
                 });
@@ -253,6 +253,7 @@ async function processExtractedStops(stops) {
 
     plotPinsAndFitMap(true);
 }
+
 function plotPinsAndFitMap(forceInitialFit = false) {
     activeMapMarkers.forEach(m => m.remove());
     activeMapMarkers = [];
@@ -308,8 +309,8 @@ function renderSidebarList() {
         addressListContainer.appendChild(item);
     });
 }
+
 function calculateOptimizedTrip() {
-    // MODIFIED: Exit early if navigation mode toggle hasn't been engaged
     if (routeStops.length === 0 || !navigationStarted) return;
 
     let startCoord = currentLocation
@@ -318,11 +319,8 @@ function calculateOptimizedTrip() {
 
     const stopsCoords = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
     const coordinatesString = `${startCoord};${stopsCoords}`;
-
-    // NEW: Allow a 25-meter snap radius for your moving car, and default 'any' for the delivery stops
     const radiusArray = ['25', ...routeStops.map(() => 'any')].join(';');
 
-    // Added &radiuses= parameter to prevent the route from breaking during minor GPS jitter
     const url = `https://router.project-osrm.org/trip/v1/driving/${coordinatesString}?geometries=geojson&overview=full&source=first&destination=any&radiuses=${radiusArray}`;
 
     if (!map.getSource('route')) {
@@ -352,7 +350,6 @@ function calculateOptimizedTrip() {
         })
         .catch(() => { statusBar.textContent = 'Routing calculation timeout.'; });
 }
-
 
 function updateLocationDot(coords) {
     const { latitude, longitude, heading } = coords;
