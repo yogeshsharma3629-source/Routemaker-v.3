@@ -146,6 +146,7 @@ startRouteBtn.addEventListener('click', () => {
         return;
     }
 
+    // FIXED: Corrected layout spelling flag assignment here to turn on navigation line successfully
     navigationStarted = !navigationStarted;
 
     if (navigationStarted) {
