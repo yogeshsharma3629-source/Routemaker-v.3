@@ -145,52 +145,60 @@ body {
 }
 
 /* --- LEFT SIDEBAR SLIDER PANEL --- */
+/* --- UPDATED: MOBILE BOTTOM SLIDER LAYOUT --- */
 .sidebar {
-    position: absolute;
-    top: 0;
+    position: fixed;
+    bottom: -60vh; /* Hidden below the screen, leaving just the header visible */
     left: 0;
-    width: 320px;
-    height: 100%;
+    width: 100%;
+    height: 70vh; /* Takes up 70% of the screen when pulled all the way up */
     background: white;
-    box-shadow: 2px 0 15px rgba(0, 0, 0, 0.15);
-    z-index: 10;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.15);
+    transition: bottom 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    z-index: 2000;
+    touch-action: none; /* Crucial for custom gesture tracking */
     display: flex;
     flex-direction: column;
-    transition: transform 0.3s ease;
-    transform: translateX(-100%);
 }
 
+/* Slide up into active position */
 .sidebar.open {
-    transform: translateX(0);
+    bottom: 0;
 }
 
+/* Add a visual drag handle indicator inside the header */
 .sidebar-header {
-    padding: 16px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #e0e0e0;
+    padding: 8px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-bottom: 1px solid #dadce0;
+    cursor: grab;
+}
+
+.sidebar-header::before {
+    content: "";
+    width: 40px;
+    height: 4px;
+    background: #bcc1c8;
+    border-radius: 2px;
+    margin-bottom: 8px;
+}
+
+.sidebar-title-row {
+    width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-.sidebar-header h3 {
-    margin: 0;
-    font-size: 18px;
-    color: #202124;
-}
-
-#closeSidebarBtn {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #5f6368;
-}
-
+/* Adjust layout behavior for list content */
 .address-list-content {
     flex: 1;
     overflow-y: auto;
-    padding: 12px;
+    padding: 16px;
 }
 
 .empty-state-text {
