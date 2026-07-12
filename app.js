@@ -56,7 +56,46 @@ map.on('movestart', (e) => {
         followUserMode = false;
     }
 });
+// =====================================================================
+// MOBILE SWIPE / SLIDER GESTURE LOGIC
+// =====================================================================
+let touchStartX = 0;
+let touchEndX = 0;
 
+// Track where the thumb first touches the screen
+addressSidebar.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+}, { passive: true });
+
+// Track where the thumb lifts off the screen
+addressSidebar.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipeGesture();
+}, { passive: true });
+
+// Also allow swiping open from the left edge tab button area
+openSidebarBtn.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+}, { passive: true });
+
+openSidebarBtn.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipeGesture();
+}, { passive: true });
+
+function handleSwipeGesture() {
+    const swipeDistance = touchEndX - touchStartX;
+    
+    // Swipe Left (Min 50px) -> Close the panel
+    if (swipeDistance < -50 && addressSidebar.classList.contains('open')) {
+        toggleSidebar(false);
+    }
+    
+    // Swipe Right (Min 50px) -> Open the panel
+    if (swipeDistance > 50 && !addressSidebar.classList.contains('open')) {
+        toggleSidebar(true);
+    }
+}
 function toggleSidebar(shouldOpen) {
     if (shouldOpen) {
         addressSidebar.classList.add('open');
