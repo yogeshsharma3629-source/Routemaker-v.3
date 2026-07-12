@@ -123,7 +123,7 @@ startRouteBtn.addEventListener('click', () => {
         startRouteBtn.classList.add('nav-active');
         followUserMode = true;
         isUserInteracting = false;
-        toggleSidebar(false); // Close slider panel to reveal full driving map view
+        toggleSidebar(false); 
         calculateOptimizedTrip();
     } else {
         startRouteBtn.textContent = 'Start Route';
@@ -278,6 +278,7 @@ function renderSidebarList() {
     });
 }
 
+// FIX 1: Explicitly added layer creation to ensure it draws on top of raster imagery layers
 function ensureRouteLayerExists() {
     if (!map.getSource('route')) {
         map.addSource('route', { 
@@ -289,7 +290,7 @@ function ensureRouteLayerExists() {
             type: 'line', 
             source: 'route', 
             layout: { 'line-join': 'round', 'line-cap': 'round' }, 
-            paint: { 'line-color': '#1a73e8', 'line-width': 5 } 
+            paint: { 'line-color': '#1a73e8', 'line-width': 6 } 
         });
     }
 }
@@ -300,9 +301,6 @@ function clearRouteLine() {
     }
 }
 
-// =====================================================================
-// FIX: PURE STRIPPED CLEAN REQUEST GENERATOR
-// =====================================================================
 function calculateOptimizedTrip() {
     if (routeStops.length === 0 || !navigationStarted) return;
     ensureRouteLayerExists();
@@ -314,7 +312,6 @@ function calculateOptimizedTrip() {
     const stopsCoords = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
     const coordinatesString = `${startCoord};${stopsCoords}`;
 
-    // Clean OSRM routing string containing strictly zero appended parameter tags
     const url = `https://router.project-osrm.org/trip/v1/driving/${coordinatesString}?geometries=geojson&overview=full&source=first&destination=any`;
 
     fetch(url)
@@ -325,11 +322,15 @@ function calculateOptimizedTrip() {
         .then(data => {
             if (!data.trips || !data.trips[0] || !navigationStarted) return;
 
-            map.getSource('route').setData({ 
-                type: 'FeatureCollection', 
-                features: [{ type: 'Feature', geometry: data.trips[0].geometry, properties: {} }] 
-            });
-            statusBar.textContent = 'Shortest delivery sequence calculated.';
+            // FIX 2: Check if source layout is alive before setting data to prevent canvas rendering race conditions
+            const routeSource = map.getSource('route');
+            if (routeSource) {
+                routeSource.setData({ 
+                    type: 'FeatureCollection', 
+                    features: [{ type: 'Feature', geometry: data.trips[0].geometry, properties: {} }] 
+                });
+                statusBar.textContent = 'Shortest delivery sequence calculated.';
+            }
 
             if (data.waypoints) {
                 const orderedWaypoints = data.waypoints
@@ -415,7 +416,12 @@ function setBaseLayer(layer) {
     }
 }
 
-map.on('load', () => setBaseLayer('street'));
+// FIX 3: Initialize the empty route layers inside the map load handler to guarantee initialization structure is present before actions fire
+map.on('load', () => {
+    setBaseLayer('street');
+    ensureRouteLayerExists();
+});
+
 scanButton.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', (e) => e.target.files[0] && scanImageWithGemini(e.target.files[0]));
 
