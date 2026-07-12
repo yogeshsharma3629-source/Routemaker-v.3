@@ -1,7 +1,28 @@
 // =====================================================================
 // PASTE YOUR GEMINI API KEY INSIDE THE QUOTES BELOW
 // =====================================================================
-const GEMINI_API_KEY = "AQ.Ab8RN6KHeN6n7XZzUMwg9ym3PtLXvIbxvMD5zw2e_ig802WniA";
+// =====================================================================
+// SECURE KEY MANAGEMENT (Keeps your key out of GitHub!)
+// =====================================================================
+let GEMINI_API_KEY = localStorage.getItem('GEMINI_API_KEY');
+
+// If no key is saved in this browser yet, prompt the user for it
+if (!GEMINI_API_KEY) {
+    GEMINI_API_KEY = prompt("Please enter your Gemini API Key to enable manifest scanning. (This will be saved safely in your local browser storage and won't be pushed to GitHub):");
+    if (GEMINI_API_KEY) {
+        localStorage.setItem('GEMINI_API_KEY', GEMINI_API_KEY.trim());
+    }
+}
+
+// Quick way to clear/reset the key if you ever need to update it
+function resetApiKey() {
+    localStorage.removeItem('GEMINI_API_KEY');
+    alert("API Key cleared. Please refresh the page to enter a new one.");
+}
+
+const map = new maplibregl.Map({
+    container: 'map',
+// ... the rest of your map initialization code continues below normally
 
 const map = new maplibregl.Map({
     container: 'map',
