@@ -6,7 +6,10 @@ body {
     background: #f2f2f2;
     overflow: hidden;
 }
-
+/* Prevent mobile browser interference when sliding the panel */
+.sidebar {
+    touch-action: none;
+}
 #map {
     position: absolute;
     inset: 0;
