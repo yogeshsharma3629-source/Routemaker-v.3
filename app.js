@@ -20,8 +20,6 @@ function resetApiKey() {
     alert("API Key cleared. Please refresh the page to enter a new one.");
 }
 
-const map = new maplibregl.Map({
-    container: 'map',
 // ... the rest of your map initialization code continues below normally
 
 const map = new maplibregl.Map({
