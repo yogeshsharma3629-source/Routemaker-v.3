@@ -258,6 +258,51 @@ function renderSidebarList() {
         return;
     }
 
+    routeStops.forEach((stop, index) => {
+        const item = document.createElement('div');
+        item.className = 'address-item';
+        item.innerHTML = `
+            <div class="stop-number">${index + 1}</div>
+            <div class="address-text-block">
+                <span class="address-street">${stop.street}</span>
+                <span class="address-city">${stop.city}</span>
+            </div>
+        `;
+        item.addEventListener('click', () => {
+            followUserMode = false;
+            document.querySelectorAll('.address-item').forEach(el => el.classList.remove('active-stop'));
+            item.classList.add('active-stop');
+            map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
+        });
+        addressListContainer.appendChild(item);
+    });
+}
+
+function ensureRouteLayerExists() {
+    if (!map.getSource('route')) {
+        map.addSource('route', { 
+            type: 'geojson', 
+            data: { type: 'FeatureCollection', features: [] } 
+        });
+        map.addLayer({ 
+            id: 'route-line', 
+            type: 'line', 
+            source: 'route', 
+            layout: { 'line-join': 'round', 'line-cap': 'round' }, 
+            paint: { 'line-color': '#1a73e8', 'line-width': 5 } 
+        });
+    }
+}
+
+function clearRouteLine() {
+    if (map.getSource('route')) {
+        map.getSource('route').setData({ type: 'FeatureCollection', features: [] });
+    }
+}
+
+// =====================================================================
+// FIX: PURE STRIPPED CLEAN REQUEST GENERATOR
+// =====================================================================
 function calculateOptimizedTrip() {
     if (routeStops.length === 0 || !navigationStarted) return;
     ensureRouteLayerExists();
@@ -269,13 +314,12 @@ function calculateOptimizedTrip() {
     const stopsCoords = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
     const coordinatesString = `${startCoord};${stopsCoords}`;
 
+    // Clean OSRM routing string containing strictly zero appended parameter tags
     const url = `https://router.project-osrm.org/trip/v1/driving/${coordinatesString}?geometries=geojson&overview=full&source=first&destination=any`;
 
     fetch(url)
         .then(res => {
-            if (!res.ok) {
-                throw new Error(`OSRM Server returned status: ${res.status}`);
-            }
+            if (!res.ok) throw new Error(`OSRM Status Error: ${res.status}`);
             return res.json();
         })
         .then(data => {
@@ -300,8 +344,8 @@ function calculateOptimizedTrip() {
             }
         })
         .catch((err) => { 
-            console.error("OSRM Route Error Details:", err);
-            statusBar.textContent = 'Routing connection error.'; 
+            console.error("OSRM Processing Exception:", err);
+            statusBar.textContent = 'Routing sequence update failed.'; 
         });
 }
 
@@ -400,7 +444,6 @@ if ('geolocation' in navigator) {
         updateLocationDot(pos.coords);
 
         if (routeStops.length > 0 && navigationStarted) {
-            // Corrected ordering parameter passing check
             const prevLat = lastCalculatedCoords ? lastCalculatedCoords.lat : null;
             const prevLon = lastCalculatedCoords ? lastCalculatedCoords.lon : null;
             const dist = calculateDistance(latitude, longitude, prevLat, prevLon);
