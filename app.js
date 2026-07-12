@@ -57,7 +57,7 @@ const openSidebarBtn = document.getElementById('openSidebarBtn');
 const clearAddressesBtn = document.getElementById('clearAddressesBtn');
 const startRouteBtn = document.getElementById('startRouteBtn'); 
 
-// NEW DOM Elements for Inline Key Config
+// DOM Elements for Inline Key Config
 const apiKeyInput = document.getElementById('apiKeyInput');
 const saveKeyBtn = document.getElementById('saveKeyBtn');
 
@@ -94,7 +94,7 @@ map.on('movestart', (e) => {
 });
 
 // =====================================================================
-// MOBILE SLIDER STATE LOGIC (TOUCH SWIPING REMOVED)
+// MOBILE SLIDER STATE LOGIC
 // =====================================================================
 function toggleSidebar(shouldOpen) {
     if (shouldOpen) {
@@ -106,7 +106,6 @@ function toggleSidebar(shouldOpen) {
     }
 }
 
-// Expressly toggle ONLY via physical button clicks now
 if (closeSidebarBtn) closeSidebarBtn.addEventListener('click', () => toggleSidebar(false));
 if (openSidebarBtn) openSidebarBtn.addEventListener('click', () => toggleSidebar(true));
 
@@ -129,9 +128,7 @@ startRouteBtn.addEventListener('click', () => {
     } else {
         startRouteBtn.textContent = 'Start Route';
         startRouteBtn.classList.remove('nav-active');
-        if (map.getSource('route')) {
-            map.getSource('route').setData({ type: 'FeatureCollection', features: [] });
-        }
+        clearRouteLine();
         statusBar.textContent = 'Navigation paused.';
     }
 });
@@ -197,10 +194,10 @@ async function processExtractedStops(stops) {
     for (let i = 0; i < stops.length; i++) {
         const stop = stops[i];
 
-        const cleanCity = stop.city.split('-')[0].trim();
-        const cleanPostalCode = stop.postal_code.replace('A-', '').trim();
+        const cleanCity = stop.city ? stop.city.split('-')[0].trim() : "";
+        const cleanPostalCode = stop.postal_code ? stop.postal_code.replace('A-', '').trim() : "";
 
-        const searchString = `${stop.street}, ${cleanPostalCode} ${cleanCity}`;
+        const searchString = `${stop.street}${cleanPostalCode ? ', ' + cleanPostalCode : ''}${cleanCity ? ' ' + cleanCity : ''}`;
         const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(searchString)}&countrycodes=at`;
 
         try {
@@ -210,7 +207,7 @@ async function processExtractedStops(stops) {
                 routeStops.push({
                     id: i,
                     street: stop.street,
-                    city: `${stop.postal_code} ${stop.city}`,
+                    city: `${stop.postal_code || ''} ${stop.city || ''}`.trim(),
                     lng: parseFloat(data[0].lon),
                     lat: parseFloat(data[0].lat)
                 });
@@ -281,8 +278,31 @@ function renderSidebarList() {
     });
 }
 
+function ensureRouteLayerExists() {
+    if (!map.getSource('route')) {
+        map.addSource('route', { 
+            type: 'geojson', 
+            data: { type: 'FeatureCollection', features: [] } 
+        });
+        map.addLayer({ 
+            id: 'route-line', 
+            type: 'line', 
+            source: 'route', 
+            layout: { 'line-join': 'round', 'line-cap': 'round' }, 
+            paint: { 'line-color': '#1a73e8', 'line-width': 5 } 
+        });
+    }
+}
+
+function clearRouteLine() {
+    if (map.getSource('route')) {
+        map.getSource('route').setData({ type: 'FeatureCollection', features: [] });
+    }
+}
+
 function calculateOptimizedTrip() {
     if (routeStops.length === 0 || !navigationStarted) return;
+    ensureRouteLayerExists();
 
     let startCoord = currentLocation
         ? `${currentLocation.longitude},${currentLocation.latitude}`
@@ -290,21 +310,19 @@ function calculateOptimizedTrip() {
 
     const stopsCoords = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
     const coordinatesString = `${startCoord};${stopsCoords}`;
-    const radiusArray = ['25', ...routeStops.map(() => 'any')].join(';');
 
-    const url = `https://router.project-osrm.org/trip/v1/driving/${coordinatesString}?geometries=geojson&overview=full&source=first&destination=any&radiuses=${radiusArray}`;
-
-    if (!map.getSource('route')) {
-        map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#1a73e8', 'line-width': 5 } });
-    }
+    // Removed strict profile matching parameters to ensure fallback generation works even off-road
+    const url = `https://router.project-osrm.org/trip/v1/driving/${coordinatesString}?geometries=geojson&overview=full&source=first&destination=any`;
 
     fetch(url)
         .then(res => res.json())
         .then(data => {
             if (!data.trips || !data.trips[0] || !navigationStarted) return;
 
-            map.getSource('route').setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: data.trips[0].geometry, properties: {} }] });
+            map.getSource('route').setData({ 
+                type: 'FeatureCollection', 
+                features: [{ type: 'Feature', geometry: data.trips[0].geometry, properties: {} }] 
+            });
             statusBar.textContent = 'Shortest delivery sequence calculated.';
 
             if (data.waypoints) {
@@ -319,7 +337,10 @@ function calculateOptimizedTrip() {
                 }
             }
         })
-        .catch(() => { statusBar.textContent = 'Routing calculation timeout.'; });
+        .catch((err) => { 
+            console.error("OSRM error:", err);
+            statusBar.textContent = 'Routing calculation timeout.'; 
+        });
 }
 
 function updateLocationDot(coords) {
@@ -362,9 +383,7 @@ function clearAllRouteData() {
     startRouteBtn.classList.remove('nav-active');
     activeMapMarkers.forEach(m => m.remove());
     activeMapMarkers = [];
-    if (map.getSource('route')) {
-        map.getSource('route').setData({ type: 'FeatureCollection', features: [] });
-    }
+    clearRouteLine();
     addressListContainer.innerHTML = '<p class="empty-state-text">No scanned addresses yet.</p>';
 }
 
@@ -419,7 +438,11 @@ if ('geolocation' in navigator) {
         updateLocationDot(pos.coords);
 
         if (routeStops.length > 0 && navigationStarted) {
-            const dist = calculateDistance(latitude, longitude, lastCalculatedCoords?.lat, lastCalculatedCoords?.lon);
+            // Corrected ordering parameter passing check
+            const prevLat = lastCalculatedCoords ? lastCalculatedCoords.lat : null;
+            const prevLon = lastCalculatedCoords ? lastCalculatedCoords.lon : null;
+            const dist = calculateDistance(latitude, longitude, prevLat, prevLon);
+            
             if (!lastCalculatedCoords || dist > 0.025) {
                 lastCalculatedCoords = { lat: latitude, lon: longitude };
                 calculateOptimizedTrip();
