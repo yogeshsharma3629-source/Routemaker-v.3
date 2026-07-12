@@ -40,7 +40,8 @@
     <button id="searchButton" class="search-icon-btn" type="button">🔍</button>
 </div>
 
-    <input id="fileInput" type="file" accept="image/*" capture="environment" hidden>
+    <!-- CORRECT WAY: Allows both live camera capture AND photo gallery picking -->
+<input id="fileInput" type="file" accept="image/*" style="display: none;">
 
     <div class="gmaps-view-switcher" role="toolbar" aria-label="Map view controls">
         <button id="mapViewBtn" class="view-pill active" type="button">Map</button>
