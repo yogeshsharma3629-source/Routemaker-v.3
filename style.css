@@ -292,17 +292,20 @@ body {
     cursor: pointer;
 }
 
+/* --- UPDATED: FLOATING 3-DOTS TAB BUTTON LOOK --- */
 .open-sidebar-tab {
     position: absolute;
-    top: 18px;
-    left: 18px;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
+    top: 82px;               /* Positioned down under the top search bar level */
+    left: 14px;              /* Standard left padding offset spacing */
+    width: 30px;             /* Match MapLibre control box icon sizing width */
+    height: 30px;            /* Match MapLibre control box icon sizing height */
+    border-radius: 4px;      /* Standard MapLibre square pill corner radius profile */
     background: white;
     border: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
     font-size: 18px;
+    font-weight: bold;
+    color: #333;
     cursor: pointer;
     z-index: 4;
     display: flex;
@@ -393,5 +396,9 @@ body {
 
     .sidebar {
         width: 100%;
+    }
+    
+    .open-sidebar-tab {
+        top: 74px;          /* Shifted slight relative offset to look beautiful on narrow screens */
     }
 }
