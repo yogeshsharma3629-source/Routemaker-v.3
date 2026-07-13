@@ -57,26 +57,25 @@ const openSidebarBtn = document.getElementById('openSidebarBtn');
 const clearAddressesBtn = document.getElementById('clearAddressesBtn');
 const startRouteBtn = document.getElementById('startRouteBtn'); 
 
-// DOM Elements for Inline Key Config
-const apiKeyInput = document.getElementById('apiKeyInput');
-const saveKeyBtn = document.getElementById('saveKeyBtn');
+// NEW: API Key interactive prompt control
+const apiKeyBtn = document.getElementById('apiKeyBtn');
 
-// Pre-populate input box if key is already stored
-if (GEMINI_API_KEY && apiKeyInput) {
-    apiKeyInput.value = GEMINI_API_KEY;
-}
-
-// Save Key Action Button Listener
-if (saveKeyBtn && apiKeyInput) {
-    saveKeyBtn.addEventListener('click', () => {
-        const freshKey = apiKeyInput.value.trim();
+if (apiKeyBtn) {
+    apiKeyBtn.addEventListener('click', () => {
+        const currentKey = GEMINI_API_KEY || "";
+        const userKey = prompt("Please enter or paste your Gemini API Key:", currentKey);
+        
+        // If the user clicked 'Cancel', do nothing
+        if (userKey === null) return;
+        
+        const freshKey = userKey.trim();
         if (freshKey) {
             GEMINI_API_KEY = freshKey;
             try {
                 localStorage.setItem('GEMINI_API_KEY', freshKey);
-                statusBar.textContent = "API Key saved locally!";
+                statusBar.textContent = "API Key saved successfully!";
             } catch(e) {
-                statusBar.textContent = "Saved to session (Storage blocked).";
+                statusBar.textContent = "Saved for this session (Storage blocked).";
             }
         } else {
             GEMINI_API_KEY = "";
@@ -144,8 +143,7 @@ async function convertFileToBase64(file) {
 
 async function scanImageWithGemini(file) {
     if (!GEMINI_API_KEY) {
-        statusBar.textContent = 'Error: Please set your Gemini API key inside the slider first.';
-        toggleSidebar(true);
+        statusBar.textContent = 'Error: Please set your Gemini API key by clicking the 🔑 button.';
         return;
     }
 
@@ -278,7 +276,6 @@ function renderSidebarList() {
     });
 }
 
-// FIX 1: Explicitly added layer creation to ensure it draws on top of raster imagery layers
 function ensureRouteLayerExists() {
     if (!map.getSource('route')) {
         map.addSource('route', { 
@@ -322,7 +319,6 @@ function calculateOptimizedTrip() {
         .then(data => {
             if (!data.trips || !data.trips[0] || !navigationStarted) return;
 
-            // FIX 2: Check if source layout is alive before setting data to prevent canvas rendering race conditions
             const routeSource = map.getSource('route');
             if (routeSource) {
                 routeSource.setData({ 
@@ -416,7 +412,6 @@ function setBaseLayer(layer) {
     }
 }
 
-// FIX 3: Initialize the empty route layers inside the map load handler to guarantee initialization structure is present before actions fire
 map.on('load', () => {
     setBaseLayer('street');
     ensureRouteLayerExists();
