@@ -140,48 +140,36 @@ async function convertFileToBase64(file) {
         reader.onerror = error => reject(error);
     });
 }
-
-async function scanImageWithGemini(file) {
-    if (!GEMINI_API_KEY) {
-        statusBar.textContent = 'Error: Please set your Gemini API key by clicking the 🔑 button.';
-        return;
-    }
-
-    statusBar.textContent = 'Uploading to Gemini AI...';
-    try {
-        const base64Data = await convertFileToBase64(file);
-        const payload = {
-            contents: [{
-                parts: [
-                    { text: 'Extract all delivery addresses from this image. DO NOT include client names. Return the data ONLY as a clean, standardized JSON array of objects with keys: "street", "postal_code", "city". No markdown format wrapper.' },
-                    { inlineData: { mimeType: file.type, data: base64Data } }
-                ]
-            }]
-        };
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error?.message || 'API request failed');
-
-        const jsonText = result.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
-        const extractedStops = JSON.parse(jsonText);
-
-        if (Array.isArray(extractedStops) && extractedStops.length > 0) {
-            statusBar.textContent = `Processed ${extractedStops.length} stops. Click 'Start Route' to navigate.`;
-            processExtractedStops(extractedStops);
-        } else {
-            statusBar.textContent = 'No addresses detected.';
-        }
-    } catch (e) {
-        console.error(e);
-        statusBar.textContent = 'Error scanning image.';
-    }
+.gmaps-top-search {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border-radius: 24px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    padding: 4px 8px; /* Gives nice breathing room for the icons */
+    /* ... keep your existing positioning properties ... */
 }
+
+.gmaps-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 8px;
+    /* ... keep your existing styling ... */
+}
+
+.search-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
 
 async function processExtractedStops(stops) {
     clearAllRouteData();
