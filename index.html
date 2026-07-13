@@ -33,6 +33,8 @@
 
     <div class="gmaps-top-search">
         <input id="searchInput" type="text" class="gmaps-search-input" placeholder="Search places or addresses">
+        <!-- NEW: API Key config interactive button -->
+        <button id="apiKeyBtn" class="search-icon-btn" type="button" title="Set Gemini API Key">🔑</button>
         <!-- UPDATED: Replaced camera icon button with an Upload action button -->
         <button id="scanButton" class="search-icon-btn" type="button" title="Upload Manifest">&#128193</button>
         <button id="searchButton" class="search-icon-btn" type="button">🔍</button>
@@ -56,7 +58,7 @@
     <div id="statusBar" class="gmaps-status">Finding your location…</div>
 
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <script src="app.js?v=2"></script
+    <script src="app.js?v=2"></script>
 </body>
 
 </html>
