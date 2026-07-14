@@ -57,6 +57,24 @@ const map = new maplibregl.Map({
     zoom: 14
 });
 
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+// MapLibre Internal Error Logger
+map.on('error', (e) => {
+    alert("MapLibre Internal Error:\n" + (e.error ? e.error.message : JSON.stringify(e)));
+});
+
+let userMarker = null;
+let currentLocation = null;
+let lastCalculatedCoords = null;
+let routeStops = [];
+let activeMapMarkers = [];
+
+// App State Toggles
+let isUserInteracting = false;
+let followUserMode = true;
+let navigationStarted = false; 
+
 // DOM Elements
 const statusBar = document.getElementById('statusBar');
 const searchInput = document.getElementById('searchInput');
@@ -74,7 +92,7 @@ const openSidebarBtn = document.getElementById('openSidebarBtn');
 const clearAddressesBtn = document.getElementById('clearAddressesBtn');
 const startRouteBtn = document.getElementById('startRouteBtn'); 
 
-// NEW: API Key interactive prompt control
+// API Key interactive prompt control
 const apiKeyBtn = document.getElementById('apiKeyBtn');
 
 if (apiKeyBtn) {
@@ -82,7 +100,6 @@ if (apiKeyBtn) {
         const currentKey = GEMINI_API_KEY || "";
         const userKey = prompt("Please enter or paste your Gemini API Key:", currentKey);
         
-        // If the user clicked 'Cancel', do nothing
         if (userKey === null) return;
         
         const freshKey = userKey.trim();
@@ -157,36 +174,66 @@ async function convertFileToBase64(file) {
         reader.onerror = error => reject(error);
     });
 }
-.gmaps-top-search {
-    display: flex;
-    align-items: center;
-    background: #fff;
-    border-radius: 24px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    padding: 4px 8px; /* Gives nice breathing room for the icons */
-    /* ... keep your existing positioning properties ... */
+
+// =====================================================================
+// GEMINI IMAGE SCANNING LOGIC
+// =====================================================================
+async function scanImageWithGemini(file) {
+    if (!GEMINI_API_KEY) {
+        statusBar.textContent = 'Error: Please set your Gemini API key by clicking the 🔑 button.';
+        alert('Missing API Key! Please click the 🔑 button first.');
+        return;
+    }
+
+    statusBar.textContent = 'Uploading to Gemini AI...';
+    try {
+        const base64Data = await convertFileToBase64(file);
+        
+        const payload = {
+            contents: [{
+                parts: [
+                    { inlineData: { mimeType: file.type, data: base64Data } },
+                    { text: 'Extract all delivery addresses from this image. Return data ONLY as a clean JSON array of objects with keys: "street", "postal_code", "city". No markdown format wrapper.' }
+                ]
+            }]
+        };
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+            alert(`API Error (${response.status}): ${JSON.stringify(result.error || result)}`);
+            statusBar.textContent = `API Error Status: ${response.status}`;
+            return;
+        }
+
+        if (!result.candidates || !result.candidates[0]?.content?.parts?.[0]?.text) {
+            alert(`Unexpected format: ${JSON.stringify(result)}`);
+            statusBar.textContent = "Format error.";
+            return;
+        }
+
+        let jsonText = result.candidates[0].content.parts[0].text;
+        jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        const extractedStops = JSON.parse(jsonText);
+
+        if (Array.isArray(extractedStops) && extractedStops.length > 0) {
+            statusBar.textContent = `Processed ${extractedStops.length} stops.`;
+            processExtractedStops(extractedStops);
+        } else {
+            statusBar.textContent = 'No addresses detected.';
+        }
+    } catch (e) {
+        alert(`System Catch Error: ${e.message}\n${e.stack}`);
+        statusBar.textContent = `Error: ${e.message}`;
+    }
 }
-
-.gmaps-search-input {
-    flex: 1;
-    border: none;
-    outline: none;
-    padding: 8px;
-    /* ... keep your existing styling ... */
-}
-
-.search-icon-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 18px;
-    padding: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-
 
 async function processExtractedStops(stops) {
     clearAllRouteData();
