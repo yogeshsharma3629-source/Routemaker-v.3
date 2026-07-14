@@ -5,6 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delivery Map Pro</title>
+    <!-- Diagnostic Error Catcher (Will catch startup errors) -->
+    <script>
+        window.addEventListener('error', function(e) {
+            alert('JS Error: ' + e.message + '\nFile: ' + e.filename + '\nLine: ' + e.lineno);
+        });
+    </script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <link rel="stylesheet" href="style.css">
 </head>
@@ -18,7 +24,6 @@
             <button id="closeSidebarBtn" title="Close Panel">&times;</button>
         </div>
     </div>
-    <!-- Keep the rest of your inner API panels, lists, and footers exactly the same -->
         <div id="addressListContainer" class="address-list-content">
             <p class="empty-state-text">No scanned addresses yet. Click the camera icon above to scan a delivery
                 manifest screen.</p>
@@ -33,17 +38,13 @@
 
     <div class="gmaps-top-search">
         <input id="searchInput" type="text" class="gmaps-search-input" placeholder="Search places or addresses">
-        <!-- NEW: API Key config interactive button -->
         <button id="apiKeyBtn" class="search-icon-btn" type="button" title="Set Gemini API Key">🔑</button>
-        <!-- UPDATED: Replaced camera icon button with an Upload action button -->
         <button id="scanButton" class="search-icon-btn" type="button" title="Upload Manifest">&#128193</button>
         <button id="searchButton" class="search-icon-btn" type="button">🔍</button>
     </div>
 
-    <!-- NEW: 3-dots menu button positioned underneath the left side of the search bar -->
     <button id="openSidebarBtn" class="open-sidebar-tab dots-toggle-btn" title="Open Delivery Stops">⋮</button>
 
-    <!-- CORRECT WAY: Allows both live camera capture AND photo gallery picking -->
     <input id="fileInput" type="file" accept="image/*" style="display: none;">
 
     <div class="gmaps-view-switcher" role="toolbar" aria-label="Map view controls">
@@ -58,7 +59,8 @@
     <div id="statusBar" class="gmaps-status">Finding your location…</div>
 
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <script src="app.js?v=2"></script>
+    <!-- Clean Cache Buster to force reload -->
+    <script src="app.js?v=99"></script>
 </body>
 
 </html>
