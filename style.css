@@ -6,33 +6,19 @@ body {
     background: #f2f2f2;
     overflow: hidden;
 }
+
 /* Prevent mobile browser interference when sliding the panel */
 .sidebar {
     touch-action: none;
 }
-/* Styling tweak for the top search layout upload button pill */
-#scanButton {
-    font-size: 14px;
-    font-weight: 600;
-    color: #1a73e8;
-    background-color: #f1f3f4;
-    border-radius: 16px;
-    margin: 4px;
-    padding: 8px 12px;
-    white-space: nowrap;
-    border-left: none; /* Removes old divider border */
-}
 
-#scanButton:hover {
-    background-color: #e8f0fe;
-}
 #map {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     background: #e6e6e6;
-    z-index: 1;
+    z-index: 1; /* Establishes baseline map stack position */
 }
 
 /* --- TOP SEARCH BAR --- */
@@ -71,8 +57,21 @@ body {
     font-size: 18px;
 }
 
+/* Styling fix for the top search layout upload folder button pill */
 #scanButton {
-    border-left: 1px solid #e0e0e0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a73e8;
+    background-color: #f1f3f4;
+    border-radius: 16px;
+    margin: 4px;
+    padding: 8px 12px;
+    white-space: nowrap;
+    border: none; /* Merged: Ensures no hard divider border overrides this layout */
+}
+
+#scanButton:hover {
+    background-color: #e8f0fe;
 }
 
 /* --- BOTTOM CONTROLS --- */
@@ -144,14 +143,13 @@ body {
     right: 14px !important;
 }
 
-/* --- LEFT SIDEBAR SLIDER PANEL --- */
-/* --- UPDATED: MOBILE BOTTOM SLIDER LAYOUT --- */
+/* --- BOTTOM SLIDER LAYOUT --- */
 .sidebar {
     position: fixed;
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 70vh; /* Takes up 70% of the screen when pulled all the way up */
+    height: 70vh; 
     background: white;
     border-top-left-radius: 20px;
     border-top-right-radius: 20px;
@@ -159,18 +157,14 @@ body {
     z-index: 2000;
     display: flex;
     flex-direction: column;
-    
-    /* Completely drops the panel under the view boundary until clicked */
     transform: translateY(100%); 
     transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* Slide up into active position by removing the transform offset */
 .sidebar.open {
     transform: translateY(0);
 }
 
-/* Add a visual drag handle indicator inside the header */
 .sidebar-header {
     padding: 8px 16px;
     display: flex;
@@ -195,7 +189,6 @@ body {
     align-items: center;
 }
 
-/* Adjust layout behavior for list content */
 .address-list-content {
     flex: 1;
     overflow-y: auto;
@@ -296,11 +289,11 @@ body {
 /* --- FLOATING 3-DOTS TAB BUTTON LOOK --- */
 .open-sidebar-tab {
     position: absolute;
-    top: 82px;               /* Positioned down under the top search bar level */
-    left: 14px;              /* Standard left padding offset spacing */
-    width: 30px;             /* Match MapLibre control box icon sizing width */
-    height: 30px;            /* Match MapLibre control box icon sizing height */
-    border-radius: 4px;      /* Standard MapLibre square pill corner radius profile */
+    top: 82px;
+    left: 14px;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
     background: white;
     border: none;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
@@ -314,7 +307,7 @@ body {
     justify-content: center;
 }
 
-/* --- FIXED: USER LOCATION BLUE DOT VISUALS --- */
+/* --- USER LOCATION BLUE DOT VISUALS --- */
 .user-dot-container {
     position: relative;
     width: 24px;
@@ -351,11 +344,9 @@ body {
         transform: scale(0.2);
         opacity: 0;
     }
-
     50% {
         opacity: 0.4;
     }
-
     100% {
         transform: scale(1.2);
         opacity: 0;
@@ -400,6 +391,6 @@ body {
     }
     
     .open-sidebar-tab {
-        top: 74px;          /* Shifted slight relative offset to look beautiful on narrow screens */
+        top: 74px;
     }
 }
