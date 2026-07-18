@@ -176,24 +176,27 @@ async function convertFileToBase64(file) {
 }
 
 // =====================================================================
-// GEMINI IMAGE SCANNING LOGIC
+// MULTI-FILE & PDF GEMINI SCANNING LOGIC
 // =====================================================================
-async function scanImageWithGemini(file) {
+async function scanSingleFileWithGemini(file) {
     if (!GEMINI_API_KEY) {
         statusBar.textContent = 'Error: Please set your Gemini API key by clicking the 🔑 button.';
         alert('Missing API Key! Please click the 🔑 button first.');
         return;
     }
 
-    statusBar.textContent = 'Uploading to Gemini AI...';
+    statusBar.textContent = `Scanning: ${file.name}...`;
     try {
         const base64Data = await convertFileToBase64(file);
         
+        // Match document specifications dynamically
+        const mimeType = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+
         const payload = {
             contents: [{
                 parts: [
-                    { inlineData: { mimeType: file.type, data: base64Data } },
-                    { text: 'Extract all delivery addresses from this image. Return data ONLY as a clean JSON array of objects with keys: "street", "postal_code", "city". No markdown format wrapper.' }
+                    { inlineData: { mimeType: mimeType, data: base64Data } },
+                    { text: 'Extract all delivery addresses from this document. Return data ONLY as a clean JSON array of objects with keys: "street", "postal_code", "city". No markdown format wrapper.' }
                 ]
             }]
         };
@@ -207,7 +210,7 @@ async function scanImageWithGemini(file) {
         const result = await response.json();
         
         if (!response.ok) {
-            alert(`API Error (${response.status}): ${JSON.stringify(result.error || result)}`);
+            alert(`API Error on file "${file.name}" (${response.status}): ${JSON.stringify(result.error || result)}`);
             statusBar.textContent = `API Error Status: ${response.status}`;
             return;
         }
@@ -224,23 +227,21 @@ async function scanImageWithGemini(file) {
         const extractedStops = JSON.parse(jsonText);
 
         if (Array.isArray(extractedStops) && extractedStops.length > 0) {
-            statusBar.textContent = `Processed ${extractedStops.length} stops.`;
-            processExtractedStops(extractedStops);
+            statusBar.textContent = `Added data from ${file.name}.`;
+            appendExtractedStops(extractedStops);
         } else {
-            statusBar.textContent = 'No addresses detected.';
+            statusBar.textContent = `No addresses detected inside ${file.name}.`;
         }
     } catch (e) {
-        alert(`System Catch Error: ${e.message}\n${e.stack}`);
+        alert(`System Catch Error on "${file.name}": ${e.message}`);
         statusBar.textContent = `Error: ${e.message}`;
     }
 }
 
-async function processExtractedStops(stops) {
-    clearAllRouteData();
+async function appendExtractedStops(stops) {
     toggleSidebar(true);
-    statusBar.textContent = 'Locating stop coordinates...';
+    statusBar.textContent = 'Locating new stop coordinates...';
 
-    routeStops = [];
     for (let i = 0; i < stops.length; i++) {
         const stop = stops[i];
 
@@ -254,8 +255,10 @@ async function processExtractedStops(stops) {
             const res = await fetch(url);
             const data = await res.json();
             if (data && data.length > 0) {
+                // Determine layout offset sequence dynamically based on total array size
+                const currentLength = routeStops.length;
                 routeStops.push({
-                    id: i,
+                    id: currentLength,
                     street: stop.street,
                     city: `${stop.postal_code || ''} ${stop.city || ''}`.trim(),
                     lng: parseFloat(data[0].lon),
@@ -444,6 +447,7 @@ function clearAllRouteData() {
 
 clearAddressesBtn.addEventListener('click', clearAllRouteData);
 
+// Generates numeric mapping icons
 function createNumberedPin(number) {
     const container = document.createElement('div');
     container.className = 'numbered-pin';
@@ -470,7 +474,18 @@ map.on('load', () => {
 });
 
 scanButton.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', (e) => e.target.files[0] && scanImageWithGemini(e.target.files[0]));
+
+// Updated Multi-file loop listener targeting the new queue parsing workflow
+fileInput.addEventListener('change', (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    statusBar.textContent = `Queued ${files.length} documents for scanning...`;
+    
+    Array.from(files).forEach((file) => {
+        scanSingleFileWithGemini(file);
+    });
+});
 
 locateButton.addEventListener('click', () => {
     if (currentLocation) {
@@ -488,7 +503,7 @@ satelliteViewBtn.addEventListener('click', () => setBaseLayer('satellite'));
 searchButton.addEventListener('click', () => {
     const val = searchInput.value;
     if (!val) return;
-    processExtractedStops([{ street: val, postal_code: "", city: "" }]);
+    appendExtractedStops([{ street: val, postal_code: "", city: "" }]);
 });
 
 if ('geolocation' in navigator) {
