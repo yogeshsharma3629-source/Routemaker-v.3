@@ -377,8 +377,13 @@ function calculateOptimizedTrip() {
     const stopsCoords = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
     const coordinatesString = `${startCoord};${stopsCoords}`;
 
-    // Switch to OSRM /route/ API with continue_straight for Google Maps style via-point behavior
-    const url = `https://router.project-osrm.org/route/v1/driving/${coordinatesString}?geometries=geojson&overview=full&continue_straight=true`;
+    // 1. Set 50m snapping radius for each point to prevent snapping onto distant motorways
+    const radiusList = new Array(routeStops.length + 1).fill('50').join(';');
+    
+    // 2. Set unrestricted approach so OSRM doesn't force a U-turn to reach a specific curb side
+    const approachesList = new Array(routeStops.length + 1).fill('unrestricted').join(';');
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordinatesString}?geometries=geojson&overview=full&continue_straight=true&radiuses=${radiusList}&approaches=${approachesList}`;
 
     fetch(url)
         .then(res => {
@@ -394,12 +399,24 @@ function calculateOptimizedTrip() {
                     type: 'FeatureCollection', 
                     features: [{ type: 'Feature', geometry: data.routes[0].geometry, properties: {} }] 
                 });
-                statusBar.textContent = 'Via-point route rendered.';
+                statusBar.textContent = 'Clean via-point route calculated.';
             }
         })
         .catch((err) => { 
             console.error("OSRM Processing Exception:", err);
-            statusBar.textContent = 'Routing sequence update failed.'; 
+            // Fallback without radiuses strictness if any point was slightly further than 50m from a road
+            const fallbackUrl = `https://router.project-osrm.org/route/v1/driving/${coordinatesString}?geometries=geojson&overview=full&continue_straight=true`;
+            fetch(fallbackUrl)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.routes && d.routes[0]) {
+                        map.getSource('route').setData({
+                            type: 'FeatureCollection',
+                            features: [{ type: 'Feature', geometry: d.routes[0].geometry, properties: {} }]
+                        });
+                        statusBar.textContent = 'Route rendered (fallback mode).';
+                    }
+                });
         });
 }
 
