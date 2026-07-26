@@ -250,9 +250,8 @@ async function appendExtractedStops(stops) {
             const res = await fetch(url);
             const data = await res.json();
             if (data && data.length > 0) {
-                const currentLength = routeStops.length;
                 routeStops.push({
-                    id: currentLength,
+                    id: 'stop_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
                     street: stop.street,
                     city: `${stop.postal_code || ''} ${stop.city || ''}`.trim(),
                     lng: parseFloat(data[0].lon),
@@ -267,6 +266,26 @@ async function appendExtractedStops(stops) {
     }
 
     plotPinsAndFitMap(true);
+}
+
+function moveStopPosition(index, direction) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= routeStops.length) return;
+
+    // Swap position in routeStops array
+    const temp = routeStops[index];
+    routeStops[index] = routeStops[targetIndex];
+    routeStops[targetIndex] = temp;
+
+    // Re-render markers and sidebar to reflect new sequence numbers
+    plotPinsAndFitMap(false);
+
+    // If navigating full route, recalculate optimized path
+    if (navigationStarted) {
+        calculateOptimizedTrip();
+    } else if (focusedStop) {
+        calculateRouteToSingleStop(focusedStop);
+    }
 }
 
 function plotPinsAndFitMap(forceInitialFit = false) {
@@ -292,12 +311,6 @@ function plotPinsAndFitMap(forceInitialFit = false) {
             pinEl.style.zIndex = '999';
             
             focusedStop = stop;
-            navigationStarted = false; // Reset full navigation state
-            if (startRouteBtn.classList.contains('nav-active')) {
-                startRouteBtn.textContent = 'Start Route';
-                startRouteBtn.classList.remove('nav-active');
-            }
-            
             calculateRouteToSingleStop(stop);
         });
 
@@ -311,10 +324,6 @@ function plotPinsAndFitMap(forceInitialFit = false) {
         routeStops.forEach(stop => bounds.extend([stop.lng, stop.lat]));
         if (currentLocation) bounds.extend([currentLocation.longitude, currentLocation.latitude]);
         map.fitBounds(bounds, { padding: 80, maxZoom: 15 });
-    }
-
-    if (navigationStarted) {
-        calculateOptimizedTrip();
     }
 }
 
@@ -338,7 +347,25 @@ function renderSidebarList() {
                 <span class="address-street">${stop.street}</span>
                 <span class="address-city">${stop.city}</span>
             </div>
+            <div class="reorder-controls">
+                <button class="reorder-btn move-up-btn" title="Move Up" ${index === 0 ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>▲</button>
+                <button class="reorder-btn move-down-btn" title="Move Down" ${index === routeStops.length - 1 ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>▼</button>
+            </div>
         `;
+
+        // Click handler for Up button
+        const upBtn = item.querySelector('.move-up-btn');
+        upBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            moveStopPosition(index, -1);
+        });
+
+        // Click handler for Down button
+        const downBtn = item.querySelector('.move-down-btn');
+        downBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            moveStopPosition(index, 1);
+        });
 
         // CLICK SIDEBAR ITEM: Direct isolated route to this specific stop
         item.addEventListener('click', () => {
@@ -348,12 +375,6 @@ function renderSidebarList() {
             map.flyTo({ center: [stop.lng, stop.lat], zoom: 15 });
 
             focusedStop = stop;
-            navigationStarted = false; // Reset full navigation state
-            if (startRouteBtn.classList.contains('nav-active')) {
-                startRouteBtn.textContent = 'Start Route';
-                startRouteBtn.classList.remove('nav-active');
-            }
-
             calculateRouteToSingleStop(stop);
         });
 
@@ -404,6 +425,13 @@ function clearRouteLine() {
 // SINGLE CLICK POINT-TO-POINT ROUTING (Strict 2-Point Line)
 // =====================================================================
 function calculateRouteToSingleStop(targetStop) {
+    // Force reset full navigation mode
+    navigationStarted = false;
+    if (startRouteBtn) {
+        startRouteBtn.textContent = 'Start Route';
+        startRouteBtn.classList.remove('nav-active');
+    }
+
     ensureRouteLayerExists();
 
     let startCoord = currentLocation
@@ -426,7 +454,7 @@ function calculateRouteToSingleStop(targetStop) {
 
             const durationMin = Math.round(data.routes[0].duration / 60);
             const distKm = (data.routes[0].distance / 1000).toFixed(1);
-            statusBar.textContent = `Direct Route to ${targetStop.street}: ${durationMin} min (${distKm} km)`;
+            statusBar.textContent = `Direct Route to Stop (${targetStop.street}): ${durationMin} min (${distKm} km)`;
         })
         .catch(err => {
             console.error("Single point route error:", err);
@@ -438,7 +466,7 @@ function calculateRouteToSingleStop(targetStop) {
 // FULL TOUR MULTI-STOP ROUTING
 // =====================================================================
 function calculateOptimizedTrip() {
-    if (routeStops.length === 0 || !navigationStarted) return;
+    if (routeStops.length === 0 || !navigationStarted || focusedStop) return;
     ensureRouteLayerExists();
 
     let startCoord = currentLocation
@@ -672,15 +700,16 @@ if ('geolocation' in navigator) {
         const { latitude, longitude } = pos.coords;
         updateLocationDot(pos.coords);
 
-        if (focusedStop && !navigationStarted) {
-            calculateRouteToSingleStop(focusedStop);
-        } else if (routeStops.length > 0 && navigationStarted) {
-            const prevLat = lastCalculatedCoords ? lastCalculatedCoords.lat : null;
-            const prevLon = lastCalculatedCoords ? lastCalculatedCoords.lon : null;
-            const dist = calculateDistance(latitude, longitude, prevLat, prevLon);
-            
-            if (!lastCalculatedCoords || dist > 0.025) {
-                lastCalculatedCoords = { lat: latitude, lon: longitude };
+        const prevLat = lastCalculatedCoords ? lastCalculatedCoords.lat : null;
+        const prevLon = lastCalculatedCoords ? lastCalculatedCoords.lon : null;
+        const dist = calculateDistance(latitude, longitude, prevLat, prevLon);
+
+        if (!lastCalculatedCoords || dist > 0.025) {
+            lastCalculatedCoords = { lat: latitude, lon: longitude };
+
+            if (focusedStop) {
+                calculateRouteToSingleStop(focusedStop);
+            } else if (routeStops.length > 0 && navigationStarted) {
                 calculateOptimizedTrip();
             }
         }
