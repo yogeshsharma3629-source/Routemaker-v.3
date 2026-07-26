@@ -3,7 +3,6 @@
 // =====================================================================
 let GEMINI_API_KEY = "";
 
-// Read key on initialization if it already exists locally
 try {
     GEMINI_API_KEY = localStorage.getItem('GEMINI_API_KEY') || "";
 } catch (e) {
@@ -59,7 +58,6 @@ const map = new maplibregl.Map({
 
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-// MapLibre Internal Error Logger
 map.on('error', (e) => {
     alert("MapLibre Internal Error:\n" + (e.error ? e.error.message : JSON.stringify(e)));
 });
@@ -69,6 +67,10 @@ let currentLocation = null;
 let lastCalculatedCoords = null;
 let routeStops = [];
 let activeMapMarkers = [];
+
+// Route Selection State
+let fetchedRoutes = [];
+let selectedRouteIndex = 0;
 
 // App State Toggles
 let isUserInteracting = false;
@@ -92,7 +94,6 @@ const openSidebarBtn = document.getElementById('openSidebarBtn');
 const clearAddressesBtn = document.getElementById('clearAddressesBtn');
 const startRouteBtn = document.getElementById('startRouteBtn'); 
 
-// API Key interactive prompt control
 const apiKeyBtn = document.getElementById('apiKeyBtn');
 
 if (apiKeyBtn) {
@@ -126,9 +127,6 @@ map.on('movestart', (e) => {
     }
 });
 
-// =====================================================================
-// MOBILE SLIDER STATE LOGIC
-// =====================================================================
 function toggleSidebar(shouldOpen) {
     if (shouldOpen) {
         addressSidebar.classList.add('open');
@@ -142,7 +140,6 @@ function toggleSidebar(shouldOpen) {
 if (closeSidebarBtn) closeSidebarBtn.addEventListener('click', () => toggleSidebar(false));
 if (openSidebarBtn) openSidebarBtn.addEventListener('click', () => toggleSidebar(true));
 
-// Start/Stop Route Navigation Event Handler
 startRouteBtn.addEventListener('click', () => {
     if (routeStops.length === 0) {
         statusBar.textContent = 'Please scan or search addresses first.';
@@ -162,6 +159,7 @@ startRouteBtn.addEventListener('click', () => {
         startRouteBtn.textContent = 'Start Route';
         startRouteBtn.classList.remove('nav-active');
         clearRouteLine();
+        removeRoutePickerUI();
         statusBar.textContent = 'Navigation paused.';
     }
 });
@@ -175,9 +173,6 @@ async function convertFileToBase64(file) {
     });
 }
 
-// =====================================================================
-// MULTI-FILE & PDF GEMINI SCANNING LOGIC
-// =====================================================================
 async function scanSingleFileWithGemini(file) {
     if (!GEMINI_API_KEY) {
         statusBar.textContent = 'Error: Please set your Gemini API key by clicking the 🔑 button.';
@@ -188,8 +183,6 @@ async function scanSingleFileWithGemini(file) {
     statusBar.textContent = `Scanning: ${file.name}...`;
     try {
         const base64Data = await convertFileToBase64(file);
-        
-        // Match document specifications dynamically
         const mimeType = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
 
         const payload = {
@@ -255,7 +248,6 @@ async function appendExtractedStops(stops) {
             const res = await fetch(url);
             const data = await res.json();
             if (data && data.length > 0) {
-                // Determine layout offset sequence dynamically based on total array size
                 const currentLength = routeStops.length;
                 routeStops.push({
                     id: currentLength,
@@ -284,7 +276,6 @@ function plotPinsAndFitMap(forceInitialFit = false) {
     routeStops.forEach((stop, index) => {
         const pinEl = createNumberedPin(index + 1);
 
-        // Anchor pin to bottom so the pointer tip rests accurately at coordinates
         const marker = new maplibregl.Marker({ 
             element: pinEl, 
             anchor: 'bottom' 
@@ -293,7 +284,6 @@ function plotPinsAndFitMap(forceInitialFit = false) {
             .setPopup(new maplibregl.Popup({ offset: 30 }).setHTML(`<b>Stop ${index + 1}</b><br>${stop.street}`))
             .addTo(map);
 
-        // Bring pin to top when clicked
         pinEl.addEventListener('click', () => {
             activeMapMarkers.forEach(m => m.getElement().style.zIndex = '1');
             pinEl.style.zIndex = '999';
@@ -344,6 +334,7 @@ function renderSidebarList() {
 }
 
 function ensureRouteLayerExists() {
+    // Primary Active Route Layer
     if (!map.getSource('route')) {
         map.addSource('route', { 
             type: 'geojson', 
@@ -357,14 +348,35 @@ function ensureRouteLayerExists() {
             paint: { 'line-color': '#1a73e8', 'line-width': 6 } 
         });
     }
+
+    // Alternative Secondary Route Layer
+    if (!map.getSource('route-alt')) {
+        map.addSource('route-alt', { 
+            type: 'geojson', 
+            data: { type: 'FeatureCollection', features: [] } 
+        });
+        map.addLayer({ 
+            id: 'route-alt-line', 
+            type: 'line', 
+            source: 'route-alt', 
+            layout: { 'line-join': 'round', 'line-cap': 'round' }, 
+            paint: { 'line-color': '#9aa0a6', 'line-width': 4, 'line-dasharray': [2, 2] } 
+        });
+    }
 }
 
 function clearRouteLine() {
     if (map.getSource('route')) {
         map.getSource('route').setData({ type: 'FeatureCollection', features: [] });
     }
+    if (map.getSource('route-alt')) {
+        map.getSource('route-alt').setData({ type: 'FeatureCollection', features: [] });
+    }
 }
 
+// =====================================================================
+// ROUTE CALCULATION & ALTERNATIVE SELECTOR LOGIC
+// =====================================================================
 function calculateOptimizedTrip() {
     if (routeStops.length === 0 || !navigationStarted) return;
     ensureRouteLayerExists();
@@ -373,17 +385,11 @@ function calculateOptimizedTrip() {
         ? `${currentLocation.longitude},${currentLocation.latitude}`
         : `${map.getCenter().lng},${map.getCenter().lat}`;
 
-    // Construct sequential via-points string
     const stopsCoords = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
     const coordinatesString = `${startCoord};${stopsCoords}`;
 
-    // 1. Set 50m snapping radius for each point to prevent snapping onto distant motorways
-    const radiusList = new Array(routeStops.length + 1).fill('50').join(';');
-    
-    // 2. Set unrestricted approach so OSRM doesn't force a U-turn to reach a specific curb side
-    const approachesList = new Array(routeStops.length + 1).fill('unrestricted').join(';');
-
-    const url = `https://router.project-osrm.org/route/v1/driving/${coordinatesString}?geometries=geojson&overview=full&continue_straight=true&radiuses=${radiusList}&approaches=${approachesList}`;
+    // alternatives=true requests alternate paths from OSRM
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordinatesString}?geometries=geojson&overview=full&continue_straight=true&alternatives=true`;
 
     fetch(url)
         .then(res => {
@@ -391,33 +397,105 @@ function calculateOptimizedTrip() {
             return res.json();
         })
         .then(data => {
-            if (!data.routes || !data.routes[0] || !navigationStarted) return;
+            if (!data.routes || data.routes.length === 0 || !navigationStarted) return;
 
-            const routeSource = map.getSource('route');
-            if (routeSource) {
-                routeSource.setData({ 
-                    type: 'FeatureCollection', 
-                    features: [{ type: 'Feature', geometry: data.routes[0].geometry, properties: {} }] 
-                });
-                statusBar.textContent = 'Clean via-point route calculated.';
-            }
+            fetchedRoutes = data.routes;
+            renderSelectedRoute(selectedRouteIndex);
+            renderRoutePickerUI(fetchedRoutes);
         })
         .catch((err) => { 
             console.error("OSRM Processing Exception:", err);
-            // Fallback without radiuses strictness if any point was slightly further than 50m from a road
-            const fallbackUrl = `https://router.project-osrm.org/route/v1/driving/${coordinatesString}?geometries=geojson&overview=full&continue_straight=true`;
-            fetch(fallbackUrl)
-                .then(r => r.json())
-                .then(d => {
-                    if (d.routes && d.routes[0]) {
-                        map.getSource('route').setData({
-                            type: 'FeatureCollection',
-                            features: [{ type: 'Feature', geometry: d.routes[0].geometry, properties: {} }]
-                        });
-                        statusBar.textContent = 'Route rendered (fallback mode).';
-                    }
-                });
+            statusBar.textContent = 'Routing sequence calculation failed.'; 
         });
+}
+
+function renderSelectedRoute(index) {
+    if (!fetchedRoutes || fetchedRoutes.length === 0) return;
+
+    selectedRouteIndex = index < fetchedRoutes.length ? index : 0;
+    const primaryRoute = fetchedRoutes[selectedRouteIndex];
+    
+    // Draw Active Route
+    const routeSource = map.getSource('route');
+    if (routeSource) {
+        routeSource.setData({ 
+            type: 'FeatureCollection', 
+            features: [{ type: 'Feature', geometry: primaryRoute.geometry, properties: {} }] 
+        });
+    }
+
+    // Draw Alternative Route (if available)
+    const altRoute = fetchedRoutes.find((_, i) => i !== selectedRouteIndex);
+    const routeAltSource = map.getSource('route-alt');
+    if (routeAltSource) {
+        if (altRoute) {
+            routeAltSource.setData({ 
+                type: 'FeatureCollection', 
+                features: [{ type: 'Feature', geometry: altRoute.geometry, properties: {} }] 
+            });
+        } else {
+            routeAltSource.setData({ type: 'FeatureCollection', features: [] });
+        }
+    }
+
+    const durationMin = Math.round(primaryRoute.duration / 60);
+    const distKm = (primaryRoute.distance / 1000).toFixed(1);
+    statusBar.textContent = `Route ${selectedRouteIndex + 1} Selected (${durationMin} min • ${distKm} km)`;
+}
+
+function renderRoutePickerUI(routes) {
+    let pickerContainer = document.getElementById('routePickerUI');
+    if (!pickerContainer) {
+        pickerContainer = document.createElement('div');
+        pickerContainer.id = 'routePickerUI';
+        pickerContainer.style.cssText = `
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 12px;
+            border-radius: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        `;
+        document.body.appendChild(pickerContainer);
+    }
+
+    pickerContainer.innerHTML = '';
+
+    routes.forEach((rt, idx) => {
+        const durationMin = Math.round(rt.duration / 60);
+        const distKm = (rt.distance / 1000).toFixed(1);
+
+        const btn = document.createElement('button');
+        btn.innerHTML = `<b>Route ${idx + 1}</b><br><small>${durationMin} min (${distKm} km)</small>`;
+        btn.style.cssText = `
+            border: none;
+            padding: 8px 16px;
+            border-radius: 18px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: ${idx === selectedRouteIndex ? '#1a73e8' : '#e8eaed'};
+            color: ${idx === selectedRouteIndex ? '#ffffff' : '#3c4043'};
+        `;
+
+        btn.addEventListener('click', () => {
+            selectedRouteIndex = idx;
+            renderSelectedRoute(idx);
+            renderRoutePickerUI(routes);
+        });
+
+        pickerContainer.appendChild(btn);
+    });
+}
+
+function removeRoutePickerUI() {
+    const pickerContainer = document.getElementById('routePickerUI');
+    if (pickerContainer) pickerContainer.remove();
 }
 
 function updateLocationDot(coords) {
@@ -455,18 +533,20 @@ function updateLocationDot(coords) {
 
 function clearAllRouteData() {
     routeStops = [];
+    fetchedRoutes = [];
+    selectedRouteIndex = 0;
     navigationStarted = false;
     startRouteBtn.textContent = 'Start Route';
     startRouteBtn.classList.remove('nav-active');
     activeMapMarkers.forEach(m => m.remove());
     activeMapMarkers = [];
     clearRouteLine();
+    removeRoutePickerUI();
     addressListContainer.innerHTML = '<p class="empty-state-text">No scanned addresses yet.</p>';
 }
 
 clearAddressesBtn.addEventListener('click', clearAllRouteData);
 
-// Generates numeric mapping icons
 function createNumberedPin(number) {
     const container = document.createElement('div');
     container.className = 'numbered-pin';
@@ -494,7 +574,6 @@ map.on('load', () => {
 
 scanButton.addEventListener('click', () => fileInput.click());
 
-// Updated Multi-file loop listener targeting the new queue parsing workflow
 fileInput.addEventListener('change', (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
