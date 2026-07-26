@@ -603,3 +603,14 @@ body {
         top: 74px;
     }
 }
+/* Force hide route selection pills / badges */
+.route-picker-container,
+.route-picker-pill,
+.route-badge,
+[class*="route-picker"],
+[class*="route-badge"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
