@@ -3,9 +3,10 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Delivery Map Pro</title>
-    <!-- Diagnostic Error Catcher (Will catch startup errors) -->
+
+    <!-- Diagnostic Error Catcher -->
     <script>
         window.addEventListener('error', function(e) {
             alert('JS Error: ' + e.message + '\nFile: ' + e.filename + '\nLine: ' + e.lineno);
@@ -17,49 +18,89 @@
 
 <body>
 
-    <div id="addressSidebar" class="sidebar">
-    <div class="sidebar-header">
-        <div class="sidebar-title-row">
-            <h3>Delivery Stops</h3>
-            <button id="closeSidebarBtn" title="Close Panel">&times;</button>
+    <!-- Google Maps-style Top Navigation Box (Turn-by-Turn HUD) -->
+    <div id="navHud" class="gmaps-nav-hud" style="display: none;">
+        <div class="nav-hud-left">
+            <span id="navManeuverIcon" class="nav-icon">⬆</span>
+        </div>
+        <div class="nav-hud-center">
+            <div id="navInstruction" class="nav-instruction">Head north on main road</div>
+            <div id="navSubText" class="nav-subtext">Then in 200m turn right</div>
+        </div>
+        <div class="nav-hud-right">
+            <button id="exitNavBtn" class="exit-nav-btn" title="Exit Navigation">✕</button>
         </div>
     </div>
-        <div id="addressListContainer" class="address-list-content">
-            <p class="empty-state-text">No scanned addresses yet. Click the camera icon above to scan a delivery
-                manifest screen.</p>
+
+    <!-- Top Search Bar -->
+    <div class="gmaps-top-search">
+        <input id="searchInput" type="text" class="gmaps-search-input" placeholder="Search places, addresses, or Google Maps links">
+        <button id="apiKeyBtn" class="search-icon-btn" type="button" title="Set Gemini API Key">🔑</button>
+        <button id="scanButton" class="search-icon-btn" type="button" title="Upload Manifest">📁</button>
+        <button id="searchButton" class="search-icon-btn" type="button">🔍</button>
+    </div>
+
+    <!-- Delivery Stops Sidebar -->
+    <div id="addressSidebar" class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title-row">
+                <h3>Delivery Route</h3>
+                <button id="closeSidebarBtn" title="Close Panel">&times;</button>
+            </div>
+            
+            <!-- Quick Add / Scan Actions -->
+            <div class="add-methods-container">
+                <div class="input-action-group">
+                    <input id="manualAddressInput" type="text" placeholder="Add street address or Google Maps link...">
+                    <button id="addManualBtn" class="add-btn" title="Add Stop">+</button>
+                </div>
+                <button id="scanMoreBtn" class="secondary-btn">📷 Scan More Documents</button>
+            </div>
         </div>
+
+        <div id="addressListContainer" class="address-list-content">
+            <p class="empty-state-text">No scanned addresses yet. Click the upload button or scan documents to build your route.</p>
+        </div>
+
         <div class="sidebar-footer">
-            <button id="startRouteBtn" class="start-btn">Start Route</button>
-            <button id="clearAddressesBtn" class="clear-btn">Clear</button>
+            <button id="startRouteBtn" class="start-btn">Start Navigation</button>
+            <button id="clearAddressesBtn" class="clear-btn">Clear All</button>
         </div>
     </div>
 
     <div id="map"></div>
 
-    <div class="gmaps-top-search">
-        <input id="searchInput" type="text" class="gmaps-search-input" placeholder="Search places or addresses">
-        <button id="apiKeyBtn" class="search-icon-btn" type="button" title="Set Gemini API Key">🔑</button>
-        <button id="scanButton" class="search-icon-btn" type="button" title="Upload Manifest">&#128193</button>
-        <button id="searchButton" class="search-icon-btn" type="button">🔍</button>
-    </div>
-
+    <!-- Toggle Sidebar Tab -->
     <button id="openSidebarBtn" class="open-sidebar-tab dots-toggle-btn" title="Open Delivery Stops">⋮</button>
 
+    <!-- Hidden File Input for Image/PDF Uploads -->
     <input id="fileInput" type="file" accept="image/*,.pdf" multiple style="display: none;">
 
+    <!-- Map View Switcher -->
     <div class="gmaps-view-switcher" role="toolbar" aria-label="Map view controls">
         <button id="mapViewBtn" class="view-pill active" type="button">Map</button>
         <button id="satelliteViewBtn" class="view-pill" type="button">Satellite</button>
     </div>
 
+    <!-- Floating Map Action Buttons -->
     <div class="gmaps-floating-actions">
-        <button id="locateButton" class="action-circle-btn" type="button">&#128205</button>
+        <button id="recenterBtn" class="action-circle-btn recenter-btn" type="button" style="display: none;" title="Re-center location">📍</button>
+        <button id="locateButton" class="action-circle-btn" type="button" title="My Location">🎯</button>
     </div>
 
+    <!-- Google Maps Bottom Navigation Banner (Route Stats) -->
+    <div id="routeBanner" class="gmaps-route-banner" style="display: none;">
+        <div class="route-info">
+            <span id="routeTime" class="route-time">-- min</span>
+            <span id="routeDistance" class="route-distance">(-- km)</span>
+        </div>
+        <button id="recalculateBtn" class="recalc-btn">Optimize Order</button>
+    </div>
+
+    <!-- Bottom Status Bar -->
     <div id="statusBar" class="gmaps-status">Finding your location…</div>
 
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <!-- Clean Cache Buster to force reload -->
     <script src="app.js?v=99"></script>
 </body>
 
