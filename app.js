@@ -68,9 +68,10 @@ let lastCalculatedCoords = null;
 let routeStops = [];
 let activeMapMarkers = [];
 
-// Route Selection State
+// Route Selection & Focus State
 let fetchedRoutes = [];
 let selectedRouteIndex = 0;
+let focusedStop = null; 
 
 // App State Toggles
 let isUserInteracting = false;
@@ -147,6 +148,7 @@ startRouteBtn.addEventListener('click', () => {
     }
 
     navigationStarted = !navigationStarted;
+    focusedStop = null; // Clear focused single stop mode when running full navigation
 
     if (navigationStarted) {
         startRouteBtn.textContent = 'Stop Navigation';
@@ -284,9 +286,19 @@ function plotPinsAndFitMap(forceInitialFit = false) {
             .setPopup(new maplibregl.Popup({ offset: 30 }).setHTML(`<b>Stop ${index + 1}</b><br>${stop.street}`))
             .addTo(map);
 
+        // CLICK PIN: Calculate single isolated route to this specific point
         pinEl.addEventListener('click', () => {
             activeMapMarkers.forEach(m => m.getElement().style.zIndex = '1');
             pinEl.style.zIndex = '999';
+            
+            focusedStop = stop;
+            navigationStarted = false; // Reset full navigation state
+            if (startRouteBtn.classList.contains('nav-active')) {
+                startRouteBtn.textContent = 'Start Route';
+                startRouteBtn.classList.remove('nav-active');
+            }
+            
+            calculateRouteToSingleStop(stop);
         });
 
         activeMapMarkers.push(marker);
@@ -316,6 +328,10 @@ function renderSidebarList() {
     routeStops.forEach((stop, index) => {
         const item = document.createElement('div');
         item.className = 'address-item';
+        if (focusedStop && focusedStop.id === stop.id) {
+            item.classList.add('active-stop');
+        }
+
         item.innerHTML = `
             <div class="stop-number">${index + 1}</div>
             <div class="address-text-block">
@@ -323,18 +339,29 @@ function renderSidebarList() {
                 <span class="address-city">${stop.city}</span>
             </div>
         `;
+
+        // CLICK SIDEBAR ITEM: Direct isolated route to this specific stop
         item.addEventListener('click', () => {
             followUserMode = false;
             document.querySelectorAll('.address-item').forEach(el => el.classList.remove('active-stop'));
             item.classList.add('active-stop');
-            map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
+            map.flyTo({ center: [stop.lng, stop.lat], zoom: 15 });
+
+            focusedStop = stop;
+            navigationStarted = false; // Reset full navigation state
+            if (startRouteBtn.classList.contains('nav-active')) {
+                startRouteBtn.textContent = 'Start Route';
+                startRouteBtn.classList.remove('nav-active');
+            }
+
+            calculateRouteToSingleStop(stop);
         });
+
         addressListContainer.appendChild(item);
     });
 }
 
 function ensureRouteLayerExists() {
-    // Primary Active Route Layer
     if (!map.getSource('route')) {
         map.addSource('route', { 
             type: 'geojson', 
@@ -349,7 +376,6 @@ function ensureRouteLayerExists() {
         });
     }
 
-    // Alternative Secondary Route Layer
     if (!map.getSource('route-alt')) {
         map.addSource('route-alt', { 
             type: 'geojson', 
@@ -375,7 +401,41 @@ function clearRouteLine() {
 }
 
 // =====================================================================
-// ROUTE CALCULATION & ALTERNATIVE SELECTOR LOGIC
+// SINGLE CLICK POINT-TO-POINT ROUTING (Strict 2-Point Line)
+// =====================================================================
+function calculateRouteToSingleStop(targetStop) {
+    ensureRouteLayerExists();
+
+    let startCoord = currentLocation
+        ? `${currentLocation.longitude},${currentLocation.latitude}`
+        : `${map.getCenter().lng},${map.getCenter().lat}`;
+
+    // Strictly pass origin and ONLY the single clicked destination coordinate
+    const coordinatesString = `${startCoord};${targetStop.lng},${targetStop.lat}`;
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordinatesString}?geometries=geojson&overview=full&alternatives=true`;
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.routes || data.routes.length === 0) return;
+
+            fetchedRoutes = data.routes;
+            selectedRouteIndex = 0;
+            renderSelectedRoute(0);
+            renderRoutePickerUI(fetchedRoutes);
+
+            const durationMin = Math.round(data.routes[0].duration / 60);
+            const distKm = (data.routes[0].distance / 1000).toFixed(1);
+            statusBar.textContent = `Direct Route to ${targetStop.street}: ${durationMin} min (${distKm} km)`;
+        })
+        .catch(err => {
+            console.error("Single point route error:", err);
+            statusBar.textContent = 'Could not calculate direct route.';
+        });
+}
+
+// =====================================================================
+// FULL TOUR MULTI-STOP ROUTING
 // =====================================================================
 function calculateOptimizedTrip() {
     if (routeStops.length === 0 || !navigationStarted) return;
@@ -388,7 +448,6 @@ function calculateOptimizedTrip() {
     const stopsCoords = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
     const coordinatesString = `${startCoord};${stopsCoords}`;
 
-    // alternatives=true requests alternate paths from OSRM
     const url = `https://router.project-osrm.org/route/v1/driving/${coordinatesString}?geometries=geojson&overview=full&continue_straight=true&alternatives=true`;
 
     fetch(url)
@@ -415,7 +474,6 @@ function renderSelectedRoute(index) {
     selectedRouteIndex = index < fetchedRoutes.length ? index : 0;
     const primaryRoute = fetchedRoutes[selectedRouteIndex];
     
-    // Draw Active Route
     const routeSource = map.getSource('route');
     if (routeSource) {
         routeSource.setData({ 
@@ -424,7 +482,6 @@ function renderSelectedRoute(index) {
         });
     }
 
-    // Draw Alternative Route (if available)
     const altRoute = fetchedRoutes.find((_, i) => i !== selectedRouteIndex);
     const routeAltSource = map.getSource('route-alt');
     if (routeAltSource) {
@@ -440,7 +497,12 @@ function renderSelectedRoute(index) {
 
     const durationMin = Math.round(primaryRoute.duration / 60);
     const distKm = (primaryRoute.distance / 1000).toFixed(1);
-    statusBar.textContent = `Route ${selectedRouteIndex + 1} Selected (${durationMin} min • ${distKm} km)`;
+    
+    if (focusedStop) {
+        statusBar.textContent = `Direct Route to ${focusedStop.street}: Route ${selectedRouteIndex + 1} (${durationMin} min • ${distKm} km)`;
+    } else {
+        statusBar.textContent = `Full Route ${selectedRouteIndex + 1} Selected (${durationMin} min • ${distKm} km)`;
+    }
 }
 
 function renderRoutePickerUI(routes) {
@@ -535,6 +597,7 @@ function clearAllRouteData() {
     routeStops = [];
     fetchedRoutes = [];
     selectedRouteIndex = 0;
+    focusedStop = null;
     navigationStarted = false;
     startRouteBtn.textContent = 'Start Route';
     startRouteBtn.classList.remove('nav-active');
@@ -609,7 +672,9 @@ if ('geolocation' in navigator) {
         const { latitude, longitude } = pos.coords;
         updateLocationDot(pos.coords);
 
-        if (routeStops.length > 0 && navigationStarted) {
+        if (focusedStop && !navigationStarted) {
+            calculateRouteToSingleStop(focusedStop);
+        } else if (routeStops.length > 0 && navigationStarted) {
             const prevLat = lastCalculatedCoords ? lastCalculatedCoords.lat : null;
             const prevLon = lastCalculatedCoords ? lastCalculatedCoords.lon : null;
             const dist = calculateDistance(latitude, longitude, prevLat, prevLon);
