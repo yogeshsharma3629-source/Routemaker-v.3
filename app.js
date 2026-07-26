@@ -82,6 +82,7 @@ const searchButton = document.getElementById('searchButton');
 const scanButton = document.getElementById('scanButton');
 const fileInput = document.getElementById('fileInput');
 const locateButton = document.getElementById('locateButton');
+const recenterBtn = document.getElementById('recenterBtn');
 const mapViewBtn = document.getElementById('mapViewBtn');
 const satelliteViewBtn = document.getElementById('satelliteViewBtn');
 
@@ -91,6 +92,24 @@ const closeSidebarBtn = document.getElementById('closeSidebarBtn');
 const openSidebarBtn = document.getElementById('openSidebarBtn');
 const clearAddressesBtn = document.getElementById('clearAddressesBtn');
 const startRouteBtn = document.getElementById('startRouteBtn'); 
+
+// New Manual Add & Scan Elements
+const manualAddressInput = document.getElementById('manualAddressInput');
+const addManualBtn = document.getElementById('addManualBtn');
+const scanMoreBtn = document.getElementById('scanMoreBtn');
+
+// Navigation HUD Elements
+const navHud = document.getElementById('navHud');
+const navManeuverIcon = document.getElementById('navManeuverIcon');
+const navInstruction = document.getElementById('navInstruction');
+const navSubText = document.getElementById('navSubText');
+const exitNavBtn = document.getElementById('exitNavBtn');
+
+// Route Banner Stats Elements
+const routeBanner = document.getElementById('routeBanner');
+const routeTime = document.getElementById('routeTime');
+const routeDistance = document.getElementById('routeDistance');
+const recalculateBtn = document.getElementById('recalculateBtn');
 
 // API Key interactive prompt control
 const apiKeyBtn = document.getElementById('apiKeyBtn');
@@ -123,8 +142,20 @@ map.on('movestart', (e) => {
     if (e.originalEvent) {
         isUserInteracting = true;
         followUserMode = false;
+        if (recenterBtn) recenterBtn.style.display = 'flex';
     }
 });
+
+if (recenterBtn) {
+    recenterBtn.addEventListener('click', () => {
+        if (currentLocation) {
+            followUserMode = true;
+            isUserInteracting = false;
+            recenterBtn.style.display = 'none';
+            map.flyTo({ center: [currentLocation.longitude, currentLocation.latitude], zoom: 16 });
+        }
+    });
+}
 
 // =====================================================================
 // MOBILE SLIDER STATE LOGIC
@@ -156,15 +187,30 @@ startRouteBtn.addEventListener('click', () => {
         startRouteBtn.classList.add('nav-active');
         followUserMode = true;
         isUserInteracting = false;
+        if (recenterBtn) recenterBtn.style.display = 'none';
         toggleSidebar(false); 
+        if (navHud) navHud.style.display = 'flex';
         calculateOptimizedTrip();
     } else {
-        startRouteBtn.textContent = 'Start Route';
-        startRouteBtn.classList.remove('nav-active');
-        clearRouteLine();
-        statusBar.textContent = 'Navigation paused.';
+        stopNavigationUI();
     }
 });
+
+if (exitNavBtn) {
+    exitNavBtn.addEventListener('click', () => {
+        stopNavigationUI();
+    });
+}
+
+function stopNavigationUI() {
+    navigationStarted = false;
+    startRouteBtn.textContent = 'Start Navigation';
+    startRouteBtn.classList.remove('nav-active');
+    if (navHud) navHud.style.display = 'none';
+    if (routeBanner) routeBanner.style.display = 'none';
+    clearRouteLine();
+    statusBar.textContent = 'Navigation paused.';
+}
 
 async function convertFileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -189,7 +235,6 @@ async function scanSingleFileWithGemini(file) {
     try {
         const base64Data = await convertFileToBase64(file);
         
-        // Match document specifications dynamically
         const mimeType = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
 
         const payload = {
@@ -238,34 +283,96 @@ async function scanSingleFileWithGemini(file) {
     }
 }
 
+// =====================================================================
+// GOOGLE MAPS LINK & ADDRESS PARSING
+// =====================================================================
+function parseInputString(inputStr) {
+    const trimmed = inputStr.trim();
+    
+    // Check if input is a Google Maps URL containing coordinates
+    if (trimmed.includes('google.com/maps') || trimmed.includes('goo.gl/maps') || trimmed.includes('maps.app.goo.gl')) {
+        // Match @lat,lng pattern inside Google Maps URLs
+        const coordMatch = trimmed.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (coordMatch) {
+            return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]), rawName: "Google Maps Pin" };
+        }
+        
+        // Match q=lat,lng pattern
+        const qMatch = trimmed.match(/q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (qMatch) {
+            return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]), rawName: "Google Maps Pin" };
+        }
+    }
+
+    // Direct Lat, Lng input format (e.g., "48.306, 14.305")
+    const directCoords = trimmed.match(/^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)$/);
+    if (directCoords) {
+        return { lat: parseFloat(directCoords[1]), lng: parseFloat(directCoords[2]), rawName: "Dropped Pin" };
+    }
+
+    return { street: trimmed, postal_code: "", city: "" };
+}
+
+async function handleAddressOrLinkInput(inputVal) {
+    if (!inputVal) return;
+    
+    const parsed = parseInputString(inputVal);
+    
+    if (parsed.lat && parsed.lng) {
+        // Directly add coordinate stop
+        routeStops.push({
+            id: routeStops.length,
+            street: parsed.rawName,
+            city: `${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)}`,
+            lng: parsed.lng,
+            lat: parsed.lat
+        });
+        plotPinsAndFitMap(true);
+        toggleSidebar(true);
+    } else {
+        // Pass through geocoding pipeline
+        appendExtractedStops([parsed]);
+    }
+}
+
 async function appendExtractedStops(stops) {
     toggleSidebar(true);
-    statusBar.textContent = 'Locating new stop coordinates...';
+    statusBar.textContent = 'Locating stop coordinates...';
 
     for (let i = 0; i < stops.length; i++) {
         const stop = stops[i];
+
+        if (stop.lat && stop.lng) {
+            routeStops.push({
+                id: routeStops.length,
+                street: stop.street || "Custom Location",
+                city: `${stop.lat.toFixed(4)}, ${stop.lng.toFixed(4)}`,
+                lng: stop.lng,
+                lat: stop.lat
+            });
+            continue;
+        }
 
         const cleanCity = stop.city ? stop.city.split('-')[0].trim() : "";
         const cleanPostalCode = stop.postal_code ? stop.postal_code.replace('A-', '').trim() : "";
 
         const searchString = `${stop.street}${cleanPostalCode ? ', ' + cleanPostalCode : ''}${cleanCity ? ' ' + cleanCity : ''}`;
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(searchString)}&countrycodes=at`;
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(searchString)}`;
 
         try {
             const res = await fetch(url);
             const data = await res.json();
             if (data && data.length > 0) {
-                // Determine layout offset sequence dynamically based on total array size
-                const currentLength = routeStops.length;
                 routeStops.push({
-                    id: currentLength,
+                    id: routeStops.length,
                     street: stop.street,
-                    city: `${stop.postal_code || ''} ${stop.city || ''}`.trim(),
+                    city: `${stop.postal_code || ''} ${stop.city || data[0].display_name.split(',')[1] || ''}`.trim(),
                     lng: parseFloat(data[0].lon),
                     lat: parseFloat(data[0].lat)
                 });
             } else {
-                console.warn('Nominatim missed match on fallback lookups:', searchString);
+                console.warn('Nominatim missed match on lookups:', searchString);
+                statusBar.textContent = `Could not locate: ${stop.street}`;
             }
         } catch (err) {
             console.error('Failed to locate address: ' + searchString, err);
@@ -307,7 +414,7 @@ function plotPinsAndFitMap(forceInitialFit = false) {
 function renderSidebarList() {
     addressListContainer.innerHTML = '';
     if (routeStops.length === 0) {
-        addressListContainer.innerHTML = '<p class="empty-state-text">No scanned addresses yet.</p>';
+        addressListContainer.innerHTML = '<p class="empty-state-text">No scanned addresses yet. Click the upload button or scan documents to build your route.</p>';
         return;
     }
 
@@ -320,15 +427,29 @@ function renderSidebarList() {
                 <span class="address-street">${stop.street}</span>
                 <span class="address-city">${stop.city}</span>
             </div>
+            <button class="remove-stop-btn" title="Remove stop">&times;</button>
         `;
+
+        item.querySelector('.remove-stop-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeStop(index);
+        });
+
         item.addEventListener('click', () => {
             followUserMode = false;
+            if (recenterBtn) recenterBtn.style.display = 'flex';
             document.querySelectorAll('.address-item').forEach(el => el.classList.remove('active-stop'));
             item.classList.add('active-stop');
             map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
         });
         addressListContainer.appendChild(item);
     });
+}
+
+function removeStop(index) {
+    routeStops.splice(index, 1);
+    plotPinsAndFitMap(false);
+    if (navigationStarted) calculateOptimizedTrip();
 }
 
 function ensureRouteLayerExists() {
@@ -353,6 +474,9 @@ function clearRouteLine() {
     }
 }
 
+// =====================================================================
+// TURN-BY-TURN HUD & OSRM TRIP ROUTING
+// =====================================================================
 function calculateOptimizedTrip() {
     if (routeStops.length === 0 || !navigationStarted) return;
     ensureRouteLayerExists();
@@ -364,7 +488,7 @@ function calculateOptimizedTrip() {
     const stopsCoords = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
     const coordinatesString = `${startCoord};${stopsCoords}`;
 
-    const url = `https://router.project-osrm.org/trip/v1/driving/${coordinatesString}?geometries=geojson&overview=full&source=first&destination=any`;
+    const url = `https://router.project-osrm.org/trip/v1/driving/${coordinatesString}?geometries=geojson&steps=true&overview=full&source=first&destination=any`;
 
     fetch(url)
         .then(res => {
@@ -374,15 +498,41 @@ function calculateOptimizedTrip() {
         .then(data => {
             if (!data.trips || !data.trips[0] || !navigationStarted) return;
 
+            const trip = data.trips[0];
+
+            // Render Blue Route Line
             const routeSource = map.getSource('route');
             if (routeSource) {
                 routeSource.setData({ 
                     type: 'FeatureCollection', 
-                    features: [{ type: 'Feature', geometry: data.trips[0].geometry, properties: {} }] 
+                    features: [{ type: 'Feature', geometry: trip.geometry, properties: {} }] 
                 });
-                statusBar.textContent = 'Shortest delivery sequence calculated.';
             }
 
+            // Update Stats Banner (ETA & Distance)
+            const durationMin = Math.round(trip.duration / 60);
+            const distKm = (trip.distance / 1000).toFixed(1);
+            if (routeTime) routeTime.textContent = `${durationMin} min`;
+            if (routeDistance) routeDistance.textContent = `(${distKm} km)`;
+            if (routeBanner) routeBanner.style.display = 'flex';
+
+            // Extract Turn-by-Turn Instruction for Top Navigation HUD
+            if (trip.legs && trip.legs[0] && trip.legs[0].steps && trip.legs[0].steps.length > 0) {
+                const currentStep = trip.legs[0].steps[0];
+                const nextStep = trip.legs[0].steps[1];
+
+                const maneuverType = currentStep.maneuver ? currentStep.maneuver.type : 'turn';
+                const modifier = currentStep.maneuver ? currentStep.maneuver.modifier : '';
+                
+                if (navManeuverIcon) navManeuverIcon.textContent = getManeuverSymbol(maneuverType, modifier);
+                if (navInstruction) navInstruction.textContent = currentStep.name ? `On ${currentStep.name}` : `Head towards Stop 1`;
+                if (navSubText && nextStep) {
+                    const stepDist = Math.round(nextStep.distance);
+                    navSubText.textContent = `In ${stepDist}m, ${nextStep.maneuver.type} ${nextStep.maneuver.modifier || ''}`;
+                }
+            }
+
+            // Re-order Stops Sequence
             if (data.waypoints) {
                 const orderedWaypoints = data.waypoints
                     .sort((a, b) => a.waypoint_index - b.waypoint_index)
@@ -394,11 +544,21 @@ function calculateOptimizedTrip() {
                     renderSidebarList();
                 }
             }
+
+            statusBar.textContent = 'Optimized route updated.';
         })
         .catch((err) => { 
             console.error("OSRM Processing Exception:", err);
             statusBar.textContent = 'Routing sequence update failed.'; 
         });
+}
+
+function getManeuverSymbol(type, modifier) {
+    if (modifier.includes('left')) return '↰';
+    if (modifier.includes('right')) return '↱';
+    if (type.includes('fork')) return '⑂';
+    if (type.includes('roundabout')) return '↻';
+    return '⬆';
 }
 
 function updateLocationDot(coords) {
@@ -436,18 +596,15 @@ function updateLocationDot(coords) {
 
 function clearAllRouteData() {
     routeStops = [];
-    navigationStarted = false;
-    startRouteBtn.textContent = 'Start Route';
-    startRouteBtn.classList.remove('nav-active');
+    stopNavigationUI();
     activeMapMarkers.forEach(m => m.remove());
     activeMapMarkers = [];
     clearRouteLine();
-    addressListContainer.innerHTML = '<p class="empty-state-text">No scanned addresses yet.</p>';
+    addressListContainer.innerHTML = '<p class="empty-state-text">No scanned addresses yet. Click the upload button or scan documents to build your route.</p>';
 }
 
 clearAddressesBtn.addEventListener('click', clearAllRouteData);
 
-// Generates numeric mapping icons
 function createNumberedPin(number) {
     const container = document.createElement('div');
     container.className = 'numbered-pin';
@@ -473,24 +630,61 @@ map.on('load', () => {
     ensureRouteLayerExists();
 });
 
+// File Upload Triggers
 scanButton.addEventListener('click', () => fileInput.click());
+if (scanMoreBtn) scanMoreBtn.addEventListener('click', () => fileInput.click());
 
-// Updated Multi-file loop listener targeting the new queue parsing workflow
 fileInput.addEventListener('change', (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    statusBar.textContent = `Queued ${files.length} documents for scanning...`;
+    statusBar.textContent = `Queued ${files.length} document(s) for scanning...`;
     
     Array.from(files).forEach((file) => {
         scanSingleFileWithGemini(file);
     });
 });
 
+// Manual Address & Google Maps Link Additions
+if (addManualBtn && manualAddressInput) {
+    addManualBtn.addEventListener('click', () => {
+        const val = manualAddressInput.value;
+        if (!val) return;
+        handleAddressOrLinkInput(val);
+        manualAddressInput.value = '';
+    });
+
+    manualAddressInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const val = manualAddressInput.value;
+            if (!val) return;
+            handleAddressOrLinkInput(val);
+            manualAddressInput.value = '';
+        }
+    });
+}
+
+searchButton.addEventListener('click', () => {
+    const val = searchInput.value;
+    if (!val) return;
+    handleAddressOrLinkInput(val);
+    searchInput.value = '';
+});
+
+searchInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const val = searchInput.value;
+        if (!val) return;
+        handleAddressOrLinkInput(val);
+        searchInput.value = '';
+    }
+});
+
 locateButton.addEventListener('click', () => {
     if (currentLocation) {
         followUserMode = true;
         isUserInteracting = false;
+        if (recenterBtn) recenterBtn.style.display = 'none';
         map.flyTo({ center: [currentLocation.longitude, currentLocation.latitude], zoom: 16 });
     } else {
         statusBar.textContent = 'Waiting for GPS signal...';
@@ -500,12 +694,13 @@ locateButton.addEventListener('click', () => {
 mapViewBtn.addEventListener('click', () => setBaseLayer('street'));
 satelliteViewBtn.addEventListener('click', () => setBaseLayer('satellite'));
 
-searchButton.addEventListener('click', () => {
-    const val = searchInput.value;
-    if (!val) return;
-    appendExtractedStops([{ street: val, postal_code: "", city: "" }]);
-});
+if (recalculateBtn) {
+    recalculateBtn.addEventListener('click', () => {
+        if (routeStops.length > 0) calculateOptimizedTrip();
+    });
+}
 
+// GPS Tracking
 if ('geolocation' in navigator) {
     navigator.geolocation.watchPosition((pos) => {
         const { latitude, longitude } = pos.coords;
